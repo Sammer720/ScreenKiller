@@ -1,0 +1,84 @@
+{
+    "version": 6,
+    "cmakeMinimumRequired": {
+        "major": 3,
+        "minor": 21,
+        "patch": 0
+    },
+    "configurePresets": [
+        {
+            "name": "base",
+            "hidden": true,
+            "binaryDir": "${sourceDir}/build/${presetName}",
+            "cacheVariables": {
+                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+            }
+        },
+        {
+            "name": "msvc-debug",
+            "inherits": "base",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "CMAKE_C_COMPILER": "cl",
+                "CMAKE_CXX_COMPILER": "cl",
+                "CMAKE_GENERATOR": "Ninja"
+            },
+            "condition": {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Windows"
+            }
+        },
+        {
+            "name": "msvc-release",
+            "inherits": "base",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release",
+                "CMAKE_C_COMPILER": "cl",
+                "CMAKE_CXX_COMPILER": "cl",
+                "CMAKE_GENERATOR": "Ninja"
+            },
+            "condition": {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Windows"
+            }
+        },
+        {
+            "name": "msvc-debug-vs",
+            "inherits": "base",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug"
+            },
+            "generator": "Visual Studio 17 2022",
+            "architecture": "x64"
+        },
+        {
+            "name": "msvc-release-vs",
+            "inherits": "base",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release"
+            },
+            "generator": "Visual Studio 17 2022",
+            "architecture": "x64"
+        }
+    ],
+    "buildPresets": [
+        {
+            "name": "msvc-debug",
+            "configurePreset": "msvc-debug"
+        },
+        {
+            "name": "msvc-release",
+            "configurePreset": "msvc-release"
+        },
+        {
+            "name": "msvc-debug-vs",
+            "configurePreset": "msvc-debug-vs"
+        },
+        {
+            "name": "msvc-release-vs",
+            "configurePreset": "msvc-release-vs"
+        }
+    ]
+}

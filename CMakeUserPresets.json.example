@@ -1,0 +1,47 @@
+# =============================================================================
+# 用户自定义 CMake 预设（不会被 Git 跟踪）
+# 请在此处填入你本机的 Qt6 与 OpenCV 安装路径
+#
+# 配置完成后执行：
+#   cmake --preset user-debug
+#   cmake --build --preset user-debug
+# =============================================================================
+{
+    "version": 6,
+    "configurePresets": [
+        {
+            "name": "user-base",
+            "hidden": true,
+            "binaryDir": "${sourceDir}/build/${presetName}",
+            "cacheVariables": {
+                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+                "Qt6_DIR":      "F:/ForVS/Qt/6.11.1/msvc2022_64",
+                "OpenCV_DIR":   "F:/ForVS/OpenCV/opencv/build"
+            }
+        },
+        {
+            "name": "user-debug",
+            "inherits": "user-base",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "CMAKE_C_COMPILER": "cl",
+                "CMAKE_CXX_COMPILER": "cl"
+            },
+            "generator": "Ninja"
+        },
+        {
+            "name": "user-release",
+            "inherits": "user-base",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release",
+                "CMAKE_C_COMPILER": "cl",
+                "CMAKE_CXX_COMPILER": "cl"
+            },
+            "generator": "Ninja"
+        }
+    ],
+    "buildPresets": [
+        { "name": "user-debug",    "configurePreset": "user-debug"    },
+        { "name": "user-release",  "configurePreset": "user-release"  }
+    ]
+}

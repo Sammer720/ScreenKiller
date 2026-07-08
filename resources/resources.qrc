@@ -1,0 +1,18 @@
+<RCC>
+    <qresource prefix="/">
+        <file>styles/windows11_light.qss</file>
+        <file>icons/app_alph.png</file>
+        <file>icons/cut.png</file>
+        <file>icons/cut_hover.png</file>
+        <file>icons/scroll.png</file>
+        <file>icons/full.png</file>
+        <file>icons/window.png</file>
+        <file>icons/frame.png</file>
+        <file>icons/save.png</file>
+        <file>icons/save_hover.png</file>
+        <file>icons/minimize.png</file>
+        <file>icons/minimize_hover.png</file>
+        <file>icons/close.png</file>
+        <file>icons/close_hover.png</file>
+    </qresource>
+</RCC>

@@ -1,0 +1,39 @@
+# ---------- 构建产物 ----------
+build/
+out/
+bin/
+lib/
+*.exe
+*.pdb
+*.ilk
+*.obj
+
+# ---------- CMake 中间产物 ----------
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+CMakeUserPresets.json
+compile_commands.json
+
+# ---------- Qt 工具产物 ----------
+ui_*.h
+moc_*.cpp
+qrc_*.cpp
+*.res
+
+# ---------- IDE / 编辑器辅助（与构建无关，不应入库） ----------
+.vs/
+.vscode/
+.clangd
+.cache/
+clangd-*
+*.swp
+*~
+
+# ---------- 系统杂项 ----------
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# ---------- AI 助手 / IDE 工作区（项目无关，不入库） ----------
+.workbuddy/
