@@ -17,6 +17,7 @@
 #include <QLabel>
 #include <QBoxLayout>
 #include <QSystemTrayIcon>
+#include <QClipboard>
 #include <QStyle>
 #include <QScreen>
 #include <QGuiApplication>
@@ -55,6 +56,8 @@ constexpr int G_WINDOW_DEFAULT_WIDTH  = 620;
 constexpr int G_WINDOW_DEFAULT_HEIGHT = 600;
 /// \brief 截屏启动延迟（毫秒，等主窗口隐藏动画完成）
 constexpr int G_CAPTURE_DELAY_MS   = 120;
+/// \brief 系统托盘气泡提示显示时长（毫秒）
+constexpr int G_TRAY_NOTICE_DURATION_MS = 3000;
 /// \brief 默认截图保存子目录名
 const QString G_SCREENSHOT_SUBDIR = QStringLiteral("Screenshots");
 /// \brief 截图文件名前缀
@@ -359,6 +362,19 @@ void MainWindow::onCaptureFinished(const QImage& image)
 
     // 显示保存按钮
     m_toolBar->setShowSaveButton(true);
+
+    // 截图成功后自动复制到剪贴板
+    QGuiApplication::clipboard()->setImage(image, QClipboard::Clipboard);
+
+    // 用系统托盘气泡提示用户
+    if (m_tray != nullptr)
+    {
+        m_tray->showMessage(
+            tr("截图完成"),
+            tr("图片已复制到剪贴板！"),
+            QSystemTrayIcon::Information,
+            G_TRAY_NOTICE_DURATION_MS);
+    }
 
     // 显示并激活主窗口
     showNormal();
