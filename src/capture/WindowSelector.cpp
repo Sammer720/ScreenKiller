@@ -13,23 +13,21 @@
 #include <QGuiApplication>
 #include <QPainterPath>
 #include <QPen>
+#include <QTimer>
 
 #ifdef Q_OS_WIN
 #  include <windows.h>
-#  include <windowsx.h>
-#  include <dwmapi.h>
 #endif
 
+#include "platform/WinApi.h"
 #include "utils/Logger.h"
-
-#ifdef Q_OS_WIN
-#  pragma comment(lib, "dwmapi.lib")
-#endif
 
 namespace {
 
 /// \brief 遮罩透明度
 constexpr int G_MASK_ALPHA = 110;
+/// \brief 遮罩关闭后等待画面刷新的延迟（毫秒），确保截图时遮罩已隐藏
+constexpr int G_CLOSE_SETTLE_MS = 50;
 /// \brief Win11 强调色 RGB 分量
 const int G_ACCENT_R = 0;
 const int G_ACCENT_G = 120;
@@ -50,8 +48,6 @@ constexpr int G_TITLE_TAG_MAX_WIDTH = 400;
 constexpr int G_TITLE_CHAR_WIDTH = 10;
 /// \brief 标题标签内边距
 constexpr int G_TITLE_TAG_PADDING = 20;
-/// \brief 标题缓冲区长度
-constexpr int G_TITLE_BUFFER_LEN = 256;
 /// \brief 圆角矩形半径
 constexpr int G_TAG_RADIUS = 4;
 
@@ -64,6 +60,7 @@ WindowSelector::WindowSelector(QWidget* parent)
                    | Qt::Tool);
     setAttribute(Qt::WA_TranslucentBackground, true);
     setCursor(Qt::CrossCursor);
+    setMouseTracking(true);
 }
 
 WindowSelector::~WindowSelector() = default;
@@ -72,6 +69,7 @@ void WindowSelector::start()
 {
     setupFullScreen();
     show();
+    m_overlayHwnd = reinterpret_cast<HWND>(winId());
     activateWindow();
     setFocus();
 }
@@ -85,59 +83,71 @@ void WindowSelector::setupFullScreen()
         return;
     }
     setGeometry(primary->virtualGeometry());
+    // 注掉：直接悬浮并点击任务栏截屏无法可靠实现，遮罩不再挖洞
+    // applyTaskbarHoleToRgn();
 }
 
-HWND WindowSelector::hwndFromPoint(const QPoint& pt)
-{
-#ifdef Q_OS_WIN
-    POINT point{ pt.x(), pt.y() };
-    // 通过 WindowFromPoint 找到窗口
-    HWND hwnd = WindowFromPoint(point);
-    // Fail-Fast：找不到时返回空
-    if (hwnd == nullptr)
-    {
-        return nullptr;
-    }
-    // 进一步细化到子窗口
-    HWND child = ChildWindowFromPoint(hwnd, point);
-    if ((child != nullptr) && (child != hwnd))
-    {
-        return child;
-    }
-    return hwnd;
-#else
-    Q_UNUSED(pt);
-    return nullptr;
-#endif
-}
-
-QRect WindowSelector::windowRectForPaint(HWND hwnd)
-{
-#ifdef Q_OS_WIN
-    // Fail-Fast：句柄无效时返回空
-    if (hwnd == nullptr)
-    {
-        return {};
-    }
-    // 优先使用 DWM 真实矩形（含阴影区），但截屏时用 GetWindowRect 更准确
-    RECT windowRect{};
-    if (DwmGetWindowAttribute(hwnd, DWMWA_EXTENDED_FRAME_BOUNDS,
-                              &windowRect, sizeof(windowRect)) == S_OK)
-    {
-        return QRect(windowRect.left, windowRect.top,
-                     windowRect.right - windowRect.left, windowRect.bottom - windowRect.top);
-    }
-    if (::GetWindowRect(hwnd, &windowRect) != 0)
-    {
-        return QRect(windowRect.left, windowRect.top,
-                     windowRect.right - windowRect.left, windowRect.bottom - windowRect.top);
-    }
-    return {};
-#else
-    Q_UNUSED(hwnd);
-    return {};
-#endif
-}
+// 注掉：直接悬浮并点击任务栏截屏无法可靠实现，遮罩不再挖洞
+// void WindowSelector::applyTaskbarHoleToRgn()
+// {
+// #ifdef Q_OS_WIN
+//     QVector<QRect> taskbarRects = SK::WinApi::getTaskbarRects();
+//     // 无任务栏矩形时跳过区域裁剪
+//     if (taskbarRects.isEmpty())
+//     {
+//         return;
+//     }
+//
+//     HWND overlayHwnd = reinterpret_cast<HWND>(winId());
+//     // Fail-Fast：窗口句柄无效时直接返回
+//     if (overlayHwnd == nullptr)
+//     {
+//         return;
+//     }
+//
+//     // 创建覆盖整个 widget 的初始区域（window-local 坐标）
+//     HRGN fullRegion = CreateRectRgn(0, 0, width(), height());
+//     if (fullRegion == nullptr)
+//     {
+//         return;
+//     }
+//
+//     // 获取虚拟几何偏移（屏幕坐标），用于将任务栏矩形从屏幕坐标转为 widget 本地坐标
+//     QScreen* primary = QGuiApplication::primaryScreen();
+//     if (primary == nullptr)
+//     {
+//         DeleteObject(fullRegion);
+//         return;
+//     }
+//     QPoint geometryOffset = primary->virtualGeometry().topLeft();
+//
+//     // 逐个减去任务栏矩形，形成「洞」
+//     for (const QRect& taskbarScreenRect : taskbarRects)
+//     {
+//         // 屏幕坐标 → widget 本地坐标
+//         QRect localRect = taskbarScreenRect.translated(-geometryOffset);
+//
+//         // QRect（inclusive right/bottom）→ RECT（exclusive right/bottom）
+//         RECT holeRect;
+//         holeRect.left = localRect.left();
+//         holeRect.top = localRect.top();
+//         holeRect.right = localRect.left() + localRect.width();
+//         holeRect.bottom = localRect.top() + localRect.height();
+//
+//         HRGN holeRegion = CreateRectRgnIndirect(&holeRect);
+//         if (holeRegion != nullptr)
+//         {
+//             CombineRgn(fullRegion, fullRegion, holeRegion, RGN_DIFF);
+//             DeleteObject(holeRegion);
+//         }
+//     }
+//
+//     // SetWindowRgn 转移 fullRegion 所有权给系统，不可再 DeleteObject(fullRegion)
+//     SetWindowRgn(overlayHwnd, fullRegion, TRUE);
+// #else
+//     // 非 Windows 平台无操作
+// #endif
+// }
 
 void WindowSelector::paintEvent(QPaintEvent* event)
 {
@@ -181,9 +191,7 @@ void WindowSelector::drawWindowHighlight(QPainter& painter)
 void WindowSelector::drawWindowTitleTag(QPainter& painter)
 {
 #ifdef Q_OS_WIN
-    wchar_t title[G_TITLE_BUFFER_LEN] = {0};
-    GetWindowTextW(m_currentHwnd, title, G_TITLE_BUFFER_LEN);
-    QString titleStr = QString::fromWCharArray(title);
+    QString titleStr = SK::WinApi::getWindowTitle(m_currentHwnd);
 
     // 标题为空时不绘制标签
     if (titleStr.isEmpty())
@@ -219,12 +227,13 @@ void WindowSelector::keyPressEvent(QKeyEvent* event)
 
 void WindowSelector::mouseMoveEvent(QMouseEvent* event)
 {
-    HWND hwnd = hwndFromPoint(event->globalPosition().toPoint());
+    QPoint globalPos = event->globalPosition().toPoint();
+    HWND hwnd = SK::WinApi::findTopLevelWindowAtPoint(globalPos.x(), globalPos.y(), m_overlayHwnd);
     // 窗口变化时更新高亮
     if (hwnd != m_currentHwnd)
     {
         m_currentHwnd = hwnd;
-        m_currentRect = windowRectForPaint(hwnd);
+        m_currentRect = SK::WinApi::getWindowFrameRect(hwnd);
         // 转换为本 widget 坐标
         QScreen* primary = QGuiApplication::primaryScreen();
         if (primary != nullptr)
@@ -239,15 +248,21 @@ void WindowSelector::mousePressEvent(QMouseEvent* event)
 {
     if (event->button() == Qt::LeftButton)
     {
+        // 先关闭遮罩，再延迟发射信号，确保截图时遮罩已隐藏
+        close();
         if (m_currentHwnd != nullptr)
         {
-            Q_EMIT windowSelected(m_currentHwnd);
+            HWND selectedHwnd = m_currentHwnd;
+            QTimer::singleShot(G_CLOSE_SETTLE_MS, this,
+                [this, selectedHwnd]
+                {
+                    Q_EMIT windowSelected(selectedHwnd);
+                });
         }
         else
         {
             Q_EMIT cancelled();
         }
-        close();
     }
     else if (event->button() == Qt::RightButton)
     {

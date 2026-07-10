@@ -36,6 +36,10 @@ public:
     /// @param visible 是否可见
     void setShowSaveButton(bool visible);
 
+    /// @brief 从外部设置截屏模式（用于启动时恢复上次选用的模式）
+    /// @param mode 0=Region(画框), 1=FullScreen, 2=Window, 3=Scrolling
+    void setCaptureMode(int mode);
+
 Q_SIGNALS:
     /// @brief 截屏按钮点击
     void captureClicked();

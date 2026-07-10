@@ -241,6 +241,27 @@ void ToolBar::setShowSaveButton(bool visible)
     }
 }
 
+void ToolBar::setCaptureMode(int mode)
+{
+    QMenu* modeMenu = m_btnMode->menu();
+    if (modeMenu == nullptr)
+    {
+        return;
+    }
+
+    // 遍历菜单项，找到 data() == mode 的项并设置为选中
+    for (QAction* action : modeMenu->actions())
+    {
+        if (action->data().toInt() == mode)
+        {
+            action->setChecked(true);
+            m_btnMode->setText(action->text() + QStringLiteral(" ▾"));
+            m_btnMode->setIcon(action->icon());
+            return;
+        }
+    }
+}
+
 // -----------------------------------------------------------------------------
 // 窗口拖拽（在工具栏空白区域按下左键拖动）
 // -----------------------------------------------------------------------------

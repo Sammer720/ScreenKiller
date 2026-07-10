@@ -76,6 +76,8 @@ constexpr int G_PAGE_ANNOTATION    = 1;
 constexpr int G_RESIZE_BORDER_WIDTH = 6;
 /// \brief 窗口几何状态在配置文件中的键名
 const QString G_CONFIG_KEY_GEOMETRY = QStringLiteral("mainWindow/geometry");
+/// \brief 截屏模式在配置文件中的键名
+const QString G_CONFIG_KEY_CAPTURE_MODE = QStringLiteral("mainWindow/captureMode");
 }
 
 MainWindow::MainWindow(QWidget* parent)
@@ -109,8 +111,12 @@ MainWindow::MainWindow(QWidget* parent)
     setupTrayIcon();
     registerHotkeys();
 
-    // 默认模式
-    m_mode = CaptureMode::Region;
+    // 从配置恢复上次关闭时选用的截屏模式，读不到则默认画框
+    QSettings initSettings;
+    int savedMode = initSettings.value(G_CONFIG_KEY_CAPTURE_MODE,
+                                       static_cast<int>(CaptureMode::Region)).toInt();
+    m_mode = static_cast<CaptureMode>(savedMode);
+    m_toolBar->setCaptureMode(savedMode);
 }
 
 // -----------------------------------------------------------------------------
@@ -319,9 +325,10 @@ bool MainWindow::handleNcHitTest(MSG* msg, qintptr* result)
 
 void MainWindow::closeEvent(QCloseEvent* event)
 {
-    // 保存窗口几何状态到系统目录下的 INI 文件（默认构造，复用全局 org/app name 和 defaultFormat）
+    // 保存窗口几何状态和截屏模式到系统目录下的 INI 文件
     QSettings settings;
     settings.setValue(G_CONFIG_KEY_GEOMETRY, saveGeometry());
+    settings.setValue(G_CONFIG_KEY_CAPTURE_MODE, static_cast<int>(m_mode));
 
     unregisterHotkeys();
     QMainWindow::closeEvent(event);

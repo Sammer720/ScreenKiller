@@ -4,8 +4,8 @@
  *
  * 工作流：
  *   1. start() 弹出跨屏遮罩
- *   2. 鼠标移动时通过 WindowFromPoint 找到下方窗口
- *   3. 用 GetWindowRect 绘制高亮边框
+ *   2. 鼠标移动时通过 WinApi Z-Order 遍历找到下方窗口
+ *   3. 用 WinApi::getWindowFrameRect 绘制高亮边框
  *   4. 鼠标左键点击：emit windowSelected(hwnd)
  *   5. ESC 或右键：emit cancelled
  */
@@ -86,19 +86,14 @@ private:
      */
     void setupFullScreen();
 
-    /**
-     * @brief 根据屏幕坐标查找窗口句柄
-     * @param pt 屏幕坐标
-     * @return 窗口句柄（找不到时返回 nullptr）
-     */
-    HWND hwndFromPoint(const QPoint& pt);
-
-    /**
-     * @brief 获取窗口用于绘制的矩形（DWM 真实边界）
-     * @param hwnd 窗口句柄
-     * @return 窗口矩形
-     */
-    QRect windowRectForPaint(HWND hwnd);
+    // 注掉：直接悬浮并点击任务栏截屏无法可靠实现，遮罩不再挖洞
+    // /**
+    //  * @brief 在遮罩区域中挖出任务栏洞，使鼠标事件穿透到任务栏
+    //  *
+    //  * 通过 SetWindowRgn 将任务栏矩形从全屏遮罩区域中减去，
+    //  * 任务栏区域不再被遮罩覆盖，鼠标点击直达任务栏。
+    //  */
+    // void applyTaskbarHoleToRgn();
 
     /**
      * @brief 绘制窗口高亮（挖空遮罩 + 边框）
@@ -115,4 +110,5 @@ private:
 private:
     HWND  m_currentHwnd = nullptr;  ///< 当前高亮窗口句柄
     QRect m_currentRect;             ///< 当前高亮窗口矩形（本 widget 坐标）
+    HWND  m_overlayHwnd = nullptr;   ///< 本遮罩窗口的 HWND（Z-Order 遍历时跳过自身）
 };

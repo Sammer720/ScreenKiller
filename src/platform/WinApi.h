@@ -84,6 +84,21 @@ QVector<HWND> enumerateTopLevelWindows();
  */
 bool isVisibleWindow(HWND hwnd);
 
+/**
+ * @brief 查找鼠标点下最顶层的可见窗口（排除遮罩自身与系统背景窗口）
+ * @param x 屏幕 X 坐标
+ * @param y 屏幕 Y 坐标
+ * @param skipHwnd 需要跳过的窗口句柄（通常为遮罩窗口自身），可为 nullptr
+ * @return 命中窗口的 HWND；未命中返回 nullptr
+ */
+HWND findTopLevelWindowAtPoint(int x, int y, HWND skipHwnd);
+
+/**
+ * @brief 获取主任务栏和所有副屏任务栏的屏幕矩形
+ * @return 任务栏矩形列表
+ */
+QVector<QRect> getTaskbarRects();
+
 #endif // Q_OS_WIN
 
 } // namespace WinApi

@@ -175,6 +175,150 @@ bool isVisibleWindow(HWND hwnd)
     return (IsWindowVisible(hwnd) != 0) && (IsIconic(hwnd) == 0);
 }
 
+namespace {
+/// \brief 需要过滤的系统背景/任务栏窗口类名列表
+const wchar_t* const G_SYSTEM_BACKGROUND_CLASSES[] = {
+    L"Progman",
+    L"WorkerW",
+    L"Shell_TrayWnd",
+    L"Shell_SecondaryTrayWnd"
+};
+/// \brief 系统背景类名数量
+constexpr int G_SYSTEM_BACKGROUND_CLASS_COUNT =
+    sizeof(G_SYSTEM_BACKGROUND_CLASSES) / sizeof(G_SYSTEM_BACKGROUND_CLASSES[0]);
+/// \brief 类名缓冲区最大字符数（256 足以容纳所有标准窗口类名）
+constexpr int G_CLASS_NAME_BUFFER_LEN = 256;
+
+/**
+ * @brief 判断窗口是否为系统背景/任务栏窗口（需过滤掉）
+ * @param hwnd 目标窗口句柄
+ * @return 是系统背景窗口返回 true，否则返回 false
+ */
+bool isSystemBackgroundWindow(HWND hwnd)
+{
+    // Fail-Fast：空句柄直接返回
+    if (hwnd == nullptr)
+    {
+        return false;
+    }
+
+    wchar_t className[G_CLASS_NAME_BUFFER_LEN] = {0};
+    int nameLen = GetClassNameW(hwnd, className, G_CLASS_NAME_BUFFER_LEN);
+    if (nameLen == 0)
+    {
+        return false;
+    }
+
+    for (int i = 0; i < G_SYSTEM_BACKGROUND_CLASS_COUNT; ++i)
+    {
+        if (wcscmp(className, G_SYSTEM_BACKGROUND_CLASSES[i]) == 0)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+} // namespace anonymous
+
+HWND findTopLevelWindowAtPoint(int x, int y, HWND skipHwnd)
+{
+    // 按 Z-Order 从最顶层窗口开始遍历
+    HWND hwnd = GetTopWindow(nullptr);
+    while (hwnd != nullptr)
+    {
+        bool isSkipped = false;
+
+        // 跳过遮罩自身
+        if (hwnd == skipHwnd)
+        {
+            isSkipped = true;
+        }
+        // 跳过不可见窗口
+        else if (IsWindowVisible(hwnd) == 0)
+        {
+            isSkipped = true;
+        }
+        // 跳过最小化窗口
+        else if (IsIconic(hwnd) != 0)
+        {
+            isSkipped = true;
+        }
+        // 跳过桌面窗口
+        else if (hwnd == GetDesktopWindow())
+        {
+            isSkipped = true;
+        }
+        // 跳过系统背景/任务栏窗口（Progman/WorkerW/Shell_TrayWnd 等）
+        else if (isSystemBackgroundWindow(hwnd))
+        {
+            isSkipped = true;
+        }
+
+        if (isSkipped)
+        {
+            hwnd = GetWindow(hwnd, GW_HWNDNEXT);
+            continue;
+        }
+
+        // 检查点是否在窗口矩形内
+        QRect rect = getWindowFrameRect(hwnd);
+        if (rect.contains(x, y))
+        {
+            return hwnd;
+        }
+        hwnd = GetWindow(hwnd, GW_HWNDNEXT);
+    }
+    return nullptr;
+}
+
+namespace {
+/// \brief 主任务栏窗口类名（Shell_TrayWnd）
+const wchar_t* const G_PRIMARY_TASKBAR_CLASS   = L"Shell_TrayWnd";
+/// \brief 副屏任务栏窗口类名（Shell_SecondaryTrayWnd）
+const wchar_t* const G_SECONDARY_TASKBAR_CLASS = L"Shell_SecondaryTrayWnd";
+} // namespace anonymous
+
+QVector<QRect> getTaskbarRects()
+{
+    QVector<QRect> taskbarRects;
+
+    // 主任务栏：Shell_TrayWnd 全局唯一
+    HWND primaryHwnd = FindWindowW(G_PRIMARY_TASKBAR_CLASS, nullptr);
+    if (primaryHwnd != nullptr)
+    {
+        RECT primaryRc{};
+        if (GetWindowRect(primaryHwnd, &primaryRc) != 0)
+        {
+            taskbarRects.append(QRect(primaryRc.left, primaryRc.top,
+                                      primaryRc.right - primaryRc.left,
+                                      primaryRc.bottom - primaryRc.top));
+        }
+    }
+
+    // 副屏任务栏：枚举所有 Shell_SecondaryTrayWnd
+    HWND secondaryHwnd = FindWindowExW(nullptr, nullptr,
+                                       G_SECONDARY_TASKBAR_CLASS, nullptr);
+    while (secondaryHwnd != nullptr)
+    {
+        RECT secondaryRc{};
+        if (GetWindowRect(secondaryHwnd, &secondaryRc) != 0)
+        {
+            // 仅追加非空矩形，过滤异常副屏状态
+            if (IsRectEmpty(&secondaryRc) == 0)
+            {
+                taskbarRects.append(QRect(secondaryRc.left, secondaryRc.top,
+                                          secondaryRc.right - secondaryRc.left,
+                                          secondaryRc.bottom - secondaryRc.top));
+            }
+        }
+        // 继续查找下一个副屏任务栏
+        secondaryHwnd = FindWindowExW(nullptr, secondaryHwnd,
+                                       G_SECONDARY_TASKBAR_CLASS, nullptr);
+    }
+
+    return taskbarRects;
+}
+
 #endif // Q_OS_WIN
 
 } // namespace WinApi
