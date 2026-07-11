@@ -45,6 +45,17 @@ public:
      */
     void start();
 
+    /**
+     * @brief 设置选区确认后是否保持遮罩不关闭（用于滚动截屏模式）
+     * @param keep 保持开启则传 true
+     */
+    void setKeepOpen(bool keep);
+
+    /**
+     * @brief 手动关闭选择器（用于 keepOpen 模式下截屏完成后的清理）
+     */
+    void finish();
+
 Q_SIGNALS:
     /**
      * @brief 选区确定信号
@@ -111,4 +122,5 @@ private:
     QPoint   m_startPos;          ///< 拖拽起点
     QPoint   m_endPos;            ///< 拖拽当前点
     QRect    m_selection;         ///< 当前选区
+    bool     m_keepOpen = false;  ///< 选区确认后是否保持遮罩不关闭
 };

@@ -62,8 +62,24 @@ RegionSelector::RegionSelector(QWidget* parent)
 
 RegionSelector::~RegionSelector() = default;
 
+void RegionSelector::setKeepOpen(bool keep)
+{
+    m_keepOpen = keep;
+}
+
+void RegionSelector::finish()
+{
+    close();
+}
+
 void RegionSelector::start()
 {
+    // 重置选区状态，避免上次截图的选区残留
+    m_dragging  = false;
+    m_startPos  = QPoint();
+    m_endPos    = QPoint();
+    m_selection = QRect();
+
     setupFullScreen();
     show();
     activateWindow();
@@ -206,12 +222,23 @@ void RegionSelector::mouseReleaseEvent(QMouseEvent* event)
             QRect virtualGeo = (primary != nullptr) ? primary->virtualGeometry() : rect();
             QRect globalSel = m_selection.translated(virtualGeo.topLeft());
             Q_EMIT regionSelected(globalSel);
+
+            if (m_keepOpen)
+            {
+                // 保持遮罩可见，让鼠标事件穿透以便用户操作下层窗口
+                setAttribute(Qt::WA_TransparentForMouseEvents, true);
+                setCursor(Qt::ArrowCursor);
+            }
+            else
+            {
+                close();
+            }
         }
         else
         {
             // 选区过小视为取消
             Q_EMIT cancelled();
+            close();
         }
-        close();
     }
 }

@@ -13,6 +13,7 @@
 #include <QApplication>
 #include <QCloseEvent>
 #include <QMenu>
+#include <QShortcut>
 #include <QStackedWidget>
 #include <QLabel>
 #include <QBoxLayout>
@@ -128,10 +129,53 @@ void MainWindow::setupUi()
     setCentralWidget(m_centralStack);
 
     // 页面 0：占位（初始）
-    m_placeholder = new QLabel(tr("按下  Ctrl + Alt + A  或点击上方「截屏」按钮开始截图"), this);
-    m_placeholder->setAlignment(Qt::AlignCenter);
+    m_placeholder = new QLabel(this);
     m_placeholder->setObjectName("placeholderLabel");
+    m_placeholder->setAlignment(Qt::AlignCenter);
+    m_placeholder->setTextFormat(Qt::RichText);
+    m_placeholder->setText(tr(
+        "<div style='text-align: center;'>"
+        "<div style='font-size: 20px; font-weight: 700; margin-bottom: 24px; "
+        "color: #4A3F6E; letter-spacing: 1px;'>ScreenKiller</div>"
+        "<table style='margin: 0 auto; font-size: 14px; line-height: 2.4; "
+        "border-collapse: collapse;'>"
+        "<tr>"
+        "<td style='text-align: right; padding-right: 40px; "
+        "color: #6B5B95; font-weight: 600; white-space: nowrap;'>"
+        "Ctrl + Alt + A</td>"
+        "<td style='text-align: left; color: #3A3357;'>开始截屏</td>"
+        "</tr>"
+        "<tr>"
+        "<td style='text-align: right; padding-right: 40px; "
+        "color: #6B5B95; font-weight: 600; white-space: nowrap;'>Tab</td>"
+        "<td style='text-align: left; color: #3A3357;'>切换截屏模式</td>"
+        "</tr>"
+        "<tr>"
+        "<td style='text-align: right; padding-right: 40px; "
+        "color: #6B5B95; font-weight: 600; white-space: nowrap;'>Esc</td>"
+        "<td style='text-align: left; color: #3A3357;'>退出或取消截屏</td>"
+        "</tr>"
+        "<tr>"
+        "<td style='text-align: right; padding-right: 40px; "
+        "color: #6B5B95; font-weight: 600; white-space: nowrap;'>Enter</td>"
+        "<td style='text-align: left; color: #3A3357;'>完成滚动截屏</td>"
+        "</tr>"
+        "</table>"
+        "</div>"
+    ));
     m_centralStack->addWidget(m_placeholder);
+
+    // Tab 快捷键：循环切换截屏模式（0->1->2->3->0->...）
+    auto* tabShortcut = new QShortcut(QKeySequence(Qt::Key_Tab), this);
+    tabShortcut->setContext(Qt::ApplicationShortcut);
+    connect(tabShortcut, &QShortcut::activated, this, [this]()
+    {
+        int nextMode = (static_cast<int>(m_mode) + 1) % 4;
+        m_mode = static_cast<CaptureMode>(nextMode);
+        m_toolBar->setCaptureMode(nextMode);
+        Q_EMIT m_toolBar->captureModeChanged(nextMode);
+        SK_LOG_INFO() << "Tab 切换截屏模式为:" << nextMode;
+    });
 
     // 页面 1：标注视口（初始隐藏，截屏完成后显示）
     m_scene = new AnnotationScene(this);

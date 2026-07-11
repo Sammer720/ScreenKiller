@@ -151,6 +151,7 @@ set(APP_SOURCES
     src/capture/RegionSelector.cpp
     src/capture/WindowSelector.cpp
     src/capture/ScrollCapture.cpp
+    src/capture/ScrollOverlay.cpp
 
     # 图像拼接
     src/stitcher/ImageStitcher.cpp
@@ -167,6 +168,7 @@ set(APP_SOURCES
     src/annotation/items/TextItem.cpp
 
     # 平台层
+    src/platform/MouseWheelHook.cpp
     src/platform/WinApi.cpp
 
     # UI 组件
@@ -186,6 +188,7 @@ set(APP_HEADERS
     src/capture/RegionSelector.h
     src/capture/WindowSelector.h
     src/capture/ScrollCapture.h
+    src/capture/ScrollOverlay.h
 
     src/stitcher/ImageStitcher.h
 
@@ -200,6 +203,7 @@ set(APP_HEADERS
     src/annotation/items/HighlighterItem.h
     src/annotation/items/TextItem.h
 
+    src/platform/MouseWheelHook.h
     src/platform/WinApi.h
 
     src/ui/ToolBar.h

@@ -1,21 +1,14 @@
 /**
  * \file ScrollCapture.h
- * \brief 滚动截屏（长截图）
+ * \brief 手动滚动截屏（长截图）
  *
  * 工作流：
  *   1. start() 先让用户框选要截屏的目标窗口 / 区域
- *   2. 进入滚动循环：
- *      a. grabWindow 抓取当前帧 -> frames 列表
- *      b. SendInput 发送鼠标滚轮事件，让目标窗口向下滚动 N 行
- *      c. 等待滚动动画稳定（默认 250ms）
- *      d. 检测是否到达底部（连续两帧无变化 / 滚动位置未变）
- *   3. 退出循环后，调用 ImageStitcher 进行垂直拼接
- *   4. emit captureFinished(mergedImage)
- *
- * 关键参数：
- *   - 滚动步长（鼠标滚轮的 delta，默认 3 行）
- *   - 帧间隔（等待稳定的时间）
- *   - 最大帧数（避免无限滚动）
+ *   2. onRegionSelected() 用 WindowFromPoint 探测选区中心所在窗口
+ *   3. 安装 MouseWheelHook 全局监听鼠标滚轮，显示 ScrollOverlay 提示浮窗
+ *   4. 用户每向下滚动一次滚轮，经过去抖后抓取一帧
+ *   5. 用户点击「完成」后，调用 ImageStitcher 进行垂直拼接
+ *   6. emit captureFinished(mergedImage)
  */
 #pragma once
 
@@ -31,12 +24,14 @@
 
 class RegionSelector;
 class ImageStitcher;
+class MouseWheelHook;
+class ScrollOverlay;
 
 /**
- * @brief 滚动截屏器
+ * @brief 手动滚动截屏器
  *
- * 通过循环抓取屏幕帧并拼接，实现长截图功能。
- * 滚动通过模拟鼠标滚轮事件驱动目标窗口滚动。
+ * 通过监听用户手动滚动事件驱动抓帧，不再自动模拟滚轮。
+ * 所有帧收集完成后拼接为长图。
  */
 class ScrollCapture : public QObject
 {
@@ -59,22 +54,16 @@ public:
     void start();
 
     /**
-     * @brief 设置滚动步长（行数）
-     * @param lines 滚动行数
-     */
-    void setScrollStep(int lines)   { m_scrollLines = lines; }
-
-    /**
-     * @brief 设置帧间隔（毫秒）
-     * @param ms 间隔时间
-     */
-    void setFrameInterval(int ms)   { m_frameIntervalMs = ms; }
-
-    /**
      * @brief 设置最大帧数
      * @param n 最大帧数
      */
     void setMaxFrames(int n)        { m_maxFrames = n; }
+
+    /**
+     * @brief 设置滚轮去抖时间（毫秒）
+     * @param ms 去抖时间
+     */
+    void setDebounceMs(int ms)      { m_debounceMs = ms; }
 
 Q_SIGNALS:
     /**
@@ -108,9 +97,26 @@ private Q_SLOTS:
     void onRegionCancelled();
 
     /**
-     * @brief 抓取下一帧
+     * @brief 滚轮事件槽
+     * @param delta 滚动量，向下为负
+     * @param pos 滚轮事件发生时的屏幕坐标
      */
-    void captureNextFrame();
+    void onWheelScrolled(int delta, const QPoint& pos);
+
+    /**
+     * @brief 去抖超时槽：实际执行抓帧
+     */
+    void onDebounceTimeout();
+
+    /**
+     * @brief 用户点击完成
+     */
+    void onFinishRequested();
+
+    /**
+     * @brief 用户点击取消
+     */
+    void onCancelRequested();
 
     /**
      * @brief 完成拼接并发出结果
@@ -119,29 +125,40 @@ private Q_SLOTS:
 
 private:
     /**
-     * @brief 向目标窗口发送滚轮事件
+     * @brief 当前内部状态
      */
-    void scrollTarget();
+    enum class State
+    {
+        Idle,             ///< 初始空闲
+        SelectingRegion,  ///< 正在框选区域
+        Capturing,        ///< 正在监听滚轮抓帧
+        Stitching         ///< 正在拼接
+    };
 
     /**
-     * @brief 检测滚动是否停滞
-     * @return 停滞返回 true（当前实现已在 captureNextFrame 中通过帧比对处理）
+     * @brief 抓取当前区域的一帧
      */
-    bool isScrollStuck();
+    void captureFrame();
+
+    /**
+     * @brief 停止监听并清理资源
+     */
+    void stopListening();
 
 private:
-    RegionSelector*  m_selector    = nullptr;  ///< 区域选择器
-    ImageStitcher*   m_stitcher    = nullptr;  ///< 图像拼接器
-    QTimer           m_timer;                  ///< 帧间隔定时器
+    RegionSelector*    m_selector    = nullptr;  ///< 区域选择器
+    ImageStitcher*     m_stitcher    = nullptr;  ///< 图像拼接器
+    MouseWheelHook*    m_hook        = nullptr;  ///< 鼠标滚轮钩子
+    ScrollOverlay*     m_overlay     = nullptr;  ///< 操作提示浮窗
+    QTimer             m_debounceTimer;            ///< 滚轮去抖定时器
 
-    QRect            m_targetRect;             ///< 屏幕坐标的截屏区域
-    HWND             m_targetHwnd  = nullptr;  ///< 滚动目标窗口句柄
+    QRect              m_targetRect;               ///< 屏幕坐标的截屏区域
+    HWND               m_targetHwnd  = nullptr;    ///< 滚动目标窗口句柄
 
-    QVector<QImage>  m_frames;                 ///< 已抓取的帧列表
-    QImage           m_lastFrame;              ///< 上一帧（用于停滞检测）
-    int              m_frameCount  = 0;       ///< 已抓取帧数
+    QVector<QImage>    m_frames;                   ///< 已抓取的帧列表
+    int                m_frameCount  = 0;        ///< 已抓取帧数
 
-    int              m_scrollLines    = 3;     ///< 滚动步长（行数）
-    int              m_frameIntervalMs = 250; ///< 帧间隔（毫秒）
-    int              m_maxFrames      = 60;    ///< 最大帧数
+    int                m_maxFrames   = 60;         ///< 最大帧数
+    int                m_debounceMs  = 200;        ///< 滚轮去抖时间（毫秒）
+    State              m_state       = State::Idle; ///< 当前状态
 };
