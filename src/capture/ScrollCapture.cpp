@@ -27,6 +27,53 @@ namespace {
 const WId G_FULLSCREEN_WID = 0;
 /// \brief 单帧场景标志（仅一帧时无需拼接）
 constexpr int G_SINGLE_FRAME = 1;
+/// \brief 判定"接近纯黑"的灰度上限
+constexpr int G_BLACK_PIXEL_THRESHOLD = 16;
+/// \brief 纯黑像素占比超过此值判为黑帧
+constexpr double G_BLACK_FRAME_RATIO = 0.70;
+
+/**
+ * @brief 判断帧是否为黑帧（≥70% 像素灰度 ≤16）
+ *
+ * 用"纯黑占比"而非"低方差"——暗色主题应用背景是深灰但不会
+ * 70% 像素接近纯黑，因此不会误杀。
+ *
+ * @param frame 待检测帧
+ * @param threshold 灰度判定阈值（≤此值视为接近纯黑）
+ * @param ratio 纯黑像素占比阈值（超过此值判为黑帧）
+ * @return true 表示是黑帧，应丢弃
+ */
+static bool isBlackFrame(const QImage& frame,
+                         int threshold = G_BLACK_PIXEL_THRESHOLD,
+                         double ratio = G_BLACK_FRAME_RATIO)
+{
+    if (frame.isNull())
+    {
+        return true;
+    }
+
+    QImage gray = frame.convertToFormat(QImage::Format_Grayscale8);
+    int totalPixels = gray.width() * gray.height();
+    if (totalPixels <= 0)
+    {
+        return true;
+    }
+
+    int blackCount = 0;
+    for (int y = 0; y < gray.height(); ++y)
+    {
+        const uchar* line = gray.constScanLine(y);
+        for (int x = 0; x < gray.width(); ++x)
+        {
+            if (line[x] <= threshold)
+            {
+                ++blackCount;
+            }
+        }
+    }
+
+    return (static_cast<double>(blackCount) / totalPixels) >= ratio;
+}
 
 } // namespace
 
@@ -260,6 +307,13 @@ void ScrollCapture::captureFrame()
     // 与上一帧完全相同则跳过，避免到底后重复抓帧
     if (!m_frames.isEmpty() && (m_frames.last() == frame))
     {
+        return;
+    }
+
+    // 黑帧质量门：≥70% 像素接近纯黑 → 丢弃，不入库、不计数
+    if (isBlackFrame(frame))
+    {
+        SK_LOG_CAP() << "丢弃黑帧 纯黑占比=" << "high";
         return;
     }
 

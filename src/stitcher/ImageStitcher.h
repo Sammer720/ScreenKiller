@@ -25,6 +25,18 @@
 #include <opencv2/core.hpp>
 
 /**
+ * @brief 固定区探测结果
+ *
+ * 顶部固定区（如表头）和底部固定区（如滚动条）在滚动过程中像素不变，
+ * 会干扰模板匹配。detectFixedRegion() 返回两侧固定行数。
+ */
+struct FixedRegion
+{
+    int topH = 0;  ///< 顶部固定行数
+    int botH = 0;  ///< 底部固定行数
+};
+
+/**
  * @brief 基于 OpenCV 的垂直图像拼接器
  *
  * 通过模板匹配计算相邻帧的重叠区域，实现长截图拼接。
@@ -75,6 +87,32 @@ public:
      * @return 重叠行数（0 表示无重叠）
      */
     int computeOverlap(const QImage& prev, const QImage& next, double* confidence = nullptr);
+
+    /**
+     * @brief 计算两帧可动内容的重叠行数（固定区感知版）
+     *
+     * 模板取自可动区底部（避开底部固定区），搜索区域排除顶/底固定区。
+     * 返回值是可动内容的重叠行数，用于拼接时计算 appendH。
+     *
+     * @param prev 上一帧
+     * @param next 下一帧
+     * @param fixed 顶/底固定区高度
+     * @param confidence 输出：匹配置信度 [0,1]
+     * @return 可动内容重叠行数（0 表示无有效重叠）
+     */
+    int computeOverlap(const QImage& prev, const QImage& next,
+                       const FixedRegion& fixed, double* confidence = nullptr);
+
+    /**
+     * @brief 探测顶部/底部固定不动的行数
+     *
+     * 对前若干帧做行级交叉比对：若某行在所有相邻帧对中像素高度一致
+     * （≥95% 像素差 ≤8），则视为固定行。容忍滚动条滑块等微小变化。
+     *
+     * @param frames 输入帧序列（至少 3 帧才探测，否则返回 {0,0}）
+     * @return 顶部固定行数 topH、底部固定行数 botH
+     */
+    FixedRegion detectFixedRegion(const QVector<QImage>& frames);
 
 private:
     /**
