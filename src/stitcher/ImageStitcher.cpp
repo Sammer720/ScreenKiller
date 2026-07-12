@@ -130,11 +130,6 @@ int ImageStitcher::computeOverlap(const QImage& prev, const QImage& next, double
     cv::Rect searchRect(0, 0, nextGray.cols, searchH);
     cv::Mat searchArea = nextGray(searchRect);
 
-    SK_LOG_INFO() << "模板匹配参数: stripH=" << stripH
-                  << " searchH=" << searchH
-                  << " prevH=" << prevGray.rows
-                  << " nextH=" << nextGray.rows;
-
     // 模板匹配
     cv::Mat result;
     cv::matchTemplate(searchArea, tmpl, result, cv::TM_CCOEFF_NORMED);
@@ -143,8 +138,6 @@ int ImageStitcher::computeOverlap(const QImage& prev, const QImage& next, double
     double minVal, maxVal;
     cv::Point minLoc, maxLoc;
     cv::minMaxLoc(result, &minVal, &maxVal, &minLoc, &maxLoc);
-
-    SK_LOG_INFO() << "模板匹配结果: maxVal=" << maxVal << " maxLoc=(" << maxLoc.x << "," << maxLoc.y << ")";
 
     if (confidence != nullptr)
     {
