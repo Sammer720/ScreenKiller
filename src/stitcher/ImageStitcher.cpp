@@ -312,10 +312,16 @@ FixedRegion ImageStitcher::detectFixedRegion(const QVector<QImage>& frames)
 // -----------------------------------------------------------------------------
 // 垂直拼接
 // -----------------------------------------------------------------------------
-QImage ImageStitcher::stitchVertical(const QVector<QImage>& frames)
+QImage ImageStitcher::stitchVertical(const QVector<QImage>& frames,
+                                      std::atomic<bool>* cancelFlag)
 {
     // Fail-Fast：空帧列表返回空图像
     if (frames.isEmpty())
+    {
+        return {};
+    }
+    // 取消前置检查
+    if (cancelFlag && cancelFlag->load())
     {
         return {};
     }
@@ -375,6 +381,13 @@ QImage ImageStitcher::stitchVertical(const QVector<QImage>& frames)
     // 第四步：逐帧拼接可动内容
     for (int i = 1; i < frames.size(); ++i)
     {
+        // 取消检查（帧对粒度）
+        if (cancelFlag && cancelFlag->load())
+        {
+            SK_LOG_STI() << "stitchVertical 取消，已处理" << (i - 1) << "帧对";
+            return {};
+        }
+
         const QImage& next = frames[i];
         cv::Mat nextMat = qImageToMat(next);
         // Fail-Fast：无效帧或宽度不一致时跳过

@@ -1,6 +1,11 @@
 /**
  * \file ScrollCapture.cpp
- * \brief 手动滚动截屏实现
+ * \brief 手动滚动截屏实现（线程化版本）
+ *
+ * 架构：
+ *   主线程：grabWindow + copy → 入队（仅 ~20ms/2K，远低于 300ms 钩子超时）
+ *   帧处理线程：dequeue → isBlackFrame → 重复检查 → append → emit进度
+ *   拼接线程（QtConcurrent）：stitchVertical（每帧对检查取消标志）
  */
 #include "ScrollCapture.h"
 
@@ -18,6 +23,8 @@
 #include "platform/MouseWheelHook.h"
 #include "platform/KeyboardHook.h"
 #include "stitcher/ImageStitcher.h"
+#include "stitcher/StitchWorker.h"
+#include "capture/FrameQueue.h"
 #include "utils/Logger.h"
 #include "utils/MessageBox.h"
 
@@ -77,6 +84,9 @@ static bool isBlackFrame(const QImage& frame,
 
 } // namespace
 
+// =============================================================================
+// 构造 / 析构
+// =============================================================================
 ScrollCapture::ScrollCapture(QObject* parent)
     : QObject(parent)
 {
@@ -84,7 +94,15 @@ ScrollCapture::ScrollCapture(QObject* parent)
 
 ScrollCapture::~ScrollCapture()
 {
+    // 安全退出线程
+    stopFrameThread();
     stopListening();
+
+    delete m_stitchWorker;
+    m_stitchWorker = nullptr;
+
+    delete m_frameQueue;
+    m_frameQueue = nullptr;
 
     delete m_overlay;
     m_overlay = nullptr;
@@ -94,8 +112,14 @@ ScrollCapture::~ScrollCapture()
 
     delete m_keyboardHook;
     m_keyboardHook = nullptr;
+
+    delete m_stitcher;
+    m_stitcher = nullptr;
 }
 
+// =============================================================================
+// 启动
+// =============================================================================
 void ScrollCapture::start()
 {
     m_state = State::SelectingRegion;
@@ -142,14 +166,21 @@ void ScrollCapture::onRegionSelected(const QRect& rect)
     SetForegroundWindow(m_targetHwnd);
 #endif
 
-    if (m_stitcher == nullptr)
-    {
-        m_stitcher = new ImageStitcher();
-    }
-
     m_frames.clear();
     m_frameCount = 0;
+    m_processedFrameCount.store(0);
     m_state = State::Capturing;
+
+    // 创建帧队列和帧处理线程
+    if (m_frameQueue == nullptr)
+    {
+        m_frameQueue = new FrameQueue(5);
+    }
+    else
+    {
+        m_frameQueue->clear();
+    }
+    startFrameThread();
 
     // 立即抓取第一帧
     captureFrame();
@@ -196,6 +227,9 @@ void ScrollCapture::onRegionCancelled()
     Q_EMIT cancelled();
 }
 
+// =============================================================================
+// 滚轮事件
+// =============================================================================
 void ScrollCapture::onWheelScrolled(int delta, const QPoint& pos)
 {
     // 仅在捕获状态下响应滚轮
@@ -226,13 +260,17 @@ void ScrollCapture::onWheelScrolled(int delta, const QPoint& pos)
 
     captureFrame();
 
+    // 达到最大帧数：进入 Flushing → Stitching
     if (m_frameCount >= m_maxFrames)
     {
         stopListening();
-        finishStitching();
+        beginFlushing();
     }
 }
 
+// =============================================================================
+// 完成 / 取消
+// =============================================================================
 void ScrollCapture::onFinishRequested()
 {
     if (m_state != State::Capturing)
@@ -251,15 +289,12 @@ void ScrollCapture::onFinishRequested()
     // 最后一次截屏，确保捕获当前最终画面
     captureFrame();
 
-    finishStitching();
+    beginFlushing();
 }
 
 void ScrollCapture::onCancelRequested()
 {
-    if (m_state != State::Capturing)
-    {
-        return;
-    }
+    m_state = State::Idle;
 
     // 关闭遮罩
     if (m_selector != nullptr)
@@ -267,10 +302,107 @@ void ScrollCapture::onCancelRequested()
         m_selector->finish();
     }
 
+    // 取消拼接 worker（如果在运行）
+    if (m_stitchWorker != nullptr)
+    {
+        m_stitchWorker->cancel();
+    }
+
     stopListening();
+    stopFrameThread();
+
     Q_EMIT cancelled();
 }
 
+// =============================================================================
+// Flushing → Stitching 流程
+// =============================================================================
+void ScrollCapture::beginFlushing()
+{
+    m_state = State::Flushing;
+
+    // 停止帧队列入队（不再 enqueue），等工作线程处理完剩余帧
+    if (m_frameQueue != nullptr)
+    {
+        m_frameQueue->stop();  // 唤醒阻塞的 dequeue
+    }
+
+    // 等待帧处理线程排空并退出
+    stopFrameThread();
+
+    SK_LOG_INFO() << "帧处理完成，有效帧数:" << m_frames.size();
+
+    // 进入拼接阶段
+    finishStitching();
+}
+
+void ScrollCapture::finishStitching()
+{
+    m_state = State::Stitching;
+
+    // Fail-Fast：没有帧时取消
+    if (m_frames.isEmpty())
+    {
+        Q_EMIT cancelled();
+        return;
+    }
+
+    // 仅一帧时无需拼接
+    if (m_frames.size() == G_SINGLE_FRAME)
+    {
+        Q_EMIT captureFinished(m_frames.first());
+        return;
+    }
+
+    // 创建拼接 worker（如果尚未创建）
+    if (m_stitchWorker == nullptr)
+    {
+        m_stitchWorker = new StitchWorker(this);
+        connect(m_stitchWorker, &StitchWorker::stitchFinished,
+                this, &ScrollCapture::onStitchFinished);
+        connect(m_stitchWorker, &StitchWorker::stitchCancelled,
+                this, &ScrollCapture::onStitchCancelled);
+    }
+
+    SK_LOG_INFO() << "开始拼接" << m_frames.size() << "帧...";
+
+    // 将 m_frames 所有权转移给 worker
+    QVector<QImage> framesToStitch;
+    framesToStitch.swap(m_frames);
+    m_stitchWorker->run(std::move(framesToStitch));
+
+    // overlay 显示"拼接中..."
+    if (m_overlay != nullptr)
+    {
+        m_overlay->setFrameCount(-1);  // -1 表示拼接中
+    }
+}
+
+void ScrollCapture::onStitchFinished(const QImage& result)
+{
+    SK_LOG_INFO() << "拼接完成，结果高度:" << result.height();
+    Q_EMIT captureFinished(result);
+}
+
+void ScrollCapture::onStitchCancelled()
+{
+    SK_LOG_INFO() << "拼接取消";
+    Q_EMIT cancelled();
+}
+
+void ScrollCapture::onFrameProcessed(int count)
+{
+    // 从工作线程通过 QueuedConnection 调用，安全更新 QWidget
+    if (m_overlay != nullptr)
+    {
+        m_overlay->setFrameCount(count);
+    }
+    Q_EMIT progress(count, m_maxFrames);
+}
+
+// =============================================================================
+// 抓帧（主线程，简化为 grab + enqueue）
+// =============================================================================
 void ScrollCapture::captureFrame()
 {
     auto* screen = QGuiApplication::primaryScreen();
@@ -304,53 +436,104 @@ void ScrollCapture::captureFrame()
         return;
     }
 
-    // 与上一帧完全相同则跳过，避免到底后重复抓帧
-    if (!m_frames.isEmpty() && (m_frames.last() == frame))
+    // 深拷贝入队（脱离隐式共享，安全传递给工作线程）
+    if (m_frameQueue != nullptr)
     {
+        m_frameQueue->enqueue(frame.copy());
+    }
+
+    m_frameCount++;
+}
+
+// =============================================================================
+// 帧处理工作线程
+// =============================================================================
+void ScrollCapture::startFrameThread()
+{
+    m_frameThreadRunning.store(true);
+
+    m_frameThread = std::make_unique<std::thread>(&ScrollCapture::frameThreadLoop, this);
+}
+
+void ScrollCapture::stopFrameThread()
+{
+    if (m_frameQueue != nullptr)
+    {
+        m_frameQueue->stop();
+    }
+
+    m_frameThreadRunning.store(false);
+
+    if (m_frameThread && m_frameThread->joinable())
+    {
+        m_frameThread->join();
+    }
+    m_frameThread.reset();
+}
+
+void ScrollCapture::frameThreadLoop()
+{
+    QImage lastValid;  // 上一帧有效帧（用于重复检查）
+
+    while (m_frameThreadRunning.load())
+    {
+        QImage frame;
+        // 阻塞等待，超时 500ms 检查运行标志
+        if (!m_frameQueue->dequeue(frame, 500))
+        {
+            // 超时或队列已停止
+            if (!m_frameThreadRunning.load())
+            {
+                break;
+            }
+            // 尝试排空剩余帧
+            while (m_frameQueue->dequeue(frame, 0))
+            {
+                // 处理剩余帧
+                processOneFrame(frame, lastValid);
+            }
+            continue;
+        }
+
+        processOneFrame(frame, lastValid);
+    }
+
+    // 排空队列中剩余帧
+    QImage frame;
+    while (m_frameQueue->dequeue(frame, 0))
+    {
+        processOneFrame(frame, lastValid);
+    }
+}
+
+void ScrollCapture::processOneFrame(QImage& frame, QImage& lastValid)
+{
+    // 黑帧质量门：≥70% 像素接近纯黑 → 丢弃
+    if (isBlackFrame(frame))
+    {
+        SK_LOG_CAP() << "丢弃黑帧";
         return;
     }
 
-    // 黑帧质量门：≥70% 像素接近纯黑 → 丢弃，不入库、不计数
-    if (isBlackFrame(frame))
+    // 与上一帧完全相同则跳过，避免到底后重复抓帧
+    if (!lastValid.isNull() && (lastValid == frame))
     {
-        SK_LOG_CAP() << "丢弃黑帧 纯黑占比=" << "high";
         return;
     }
 
     m_frames.append(frame);
-    m_frameCount++;
+    lastValid = frame;  // 更新上一帧引用（QImage COW，安全）
 
-    if (m_overlay != nullptr)
-    {
-        m_overlay->setFrameCount(m_frameCount);
-    }
+    int count = static_cast<int>(m_frames.size());
+    m_processedFrameCount.store(count);
 
-    Q_EMIT progress(m_frameCount, m_maxFrames);
+    // 通过信号通知主线程更新 overlay（QueuedConnection）
+    Q_EMIT frameProcessed(count);
 }
 
-void ScrollCapture::finishStitching()
-{
-    m_state = State::Stitching;
-
-    // Fail-Fast：没有帧时取消
-    if (m_frames.isEmpty())
-    {
-        Q_EMIT cancelled();
-        return;
-    }
-
-    // 仅一帧时无需拼接
-    if (m_frames.size() == G_SINGLE_FRAME)
-    {
-        Q_EMIT captureFinished(m_frames.first());
-        return;
-    }
-
-    SK_LOG_INFO() << "开始拼接" << m_frames.size() << "帧...";
-    QImage merged = m_stitcher->stitchVertical(m_frames);
-    Q_EMIT captureFinished(merged);
-}
-
+// =============================================================================
+// 停止监听
+// =============================================================================
 void ScrollCapture::stopListening()
 {
     if (m_hook != nullptr)

@@ -24,6 +24,8 @@
 
 #include <opencv2/core.hpp>
 
+#include <atomic>
+
 /**
  * @brief 固定区探测结果
  *
@@ -75,9 +77,11 @@ public:
     /**
      * @brief 垂直拼接一系列帧
      * @param frames 输入帧（宽度需一致）
-     * @return 合并后的长图；失败返回空 QImage
+     * @param cancelFlag 取消标志（非空时，每帧对循环顶检查；置 true 则立即返回空图像）
+     * @return 合并后的长图；失败或取消返回空 QImage
      */
-    QImage stitchVertical(const QVector<QImage>& frames);
+    QImage stitchVertical(const QVector<QImage>& frames,
+                          std::atomic<bool>* cancelFlag = nullptr);
 
     /**
      * @brief 计算两帧之间的垂直重叠行数

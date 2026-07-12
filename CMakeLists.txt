@@ -65,7 +65,7 @@ message(STATUS "===========================================================")
 # =============================================================================
 # 寻找 Qt6
 # =============================================================================
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Concurrent)
 
 # 编译时需要的 Qt 定义
 add_compile_definitions(
@@ -152,9 +152,11 @@ set(APP_SOURCES
     src/capture/WindowSelector.cpp
     src/capture/ScrollCapture.cpp
     src/capture/ScrollOverlay.cpp
+    src/capture/FrameQueue.cpp
 
     # 图像拼接
     src/stitcher/ImageStitcher.cpp
+    src/stitcher/StitchWorker.cpp
 
     # 标注画布
     src/annotation/AnnotationView.cpp
@@ -190,8 +192,10 @@ set(APP_HEADERS
     src/capture/WindowSelector.h
     src/capture/ScrollCapture.h
     src/capture/ScrollOverlay.h
+    src/capture/FrameQueue.h
 
     src/stitcher/ImageStitcher.h
+    src/stitcher/StitchWorker.h
 
     src/annotation/AnnotationView.h
     src/annotation/AnnotationScene.h
@@ -257,6 +261,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     Qt6::Core
     Qt6::Gui
     Qt6::Widgets
+    Qt6::Concurrent
 
     ${OpenCV_LIBS}
 
