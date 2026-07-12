@@ -106,5 +106,5 @@ private:
 private:
     int    m_stripHeight   = 64;    ///< 模板高度
     double m_minConfidence = 0.55; ///< 模板匹配置信度阈值
-    double m_searchRatio   = 0.6;  ///< 在下一帧中搜索的范围（0~1，从顶部起算）
+    double m_searchRatio   = 1.0;  ///< 在下一帧中搜索的范围（0~1，从顶部起算）
 };

@@ -235,12 +235,13 @@ void ScrollCapture::captureFrame()
         return;
     }
 
-    // 遮罩在选区内部已透明，无需隐藏即可直接抓取
     // 抓取屏幕 -> 裁剪到目标区域（含 DPI 校正）
+    // 实际截屏区域比画框选区每边内缩 2px，避免截到蓝色边框
     QPixmap full = screen->grabWindow(G_FULLSCREEN_WID);
     qreal ratio = full.devicePixelRatio();
-    QRectF deviceRect(m_targetRect.x() * ratio, m_targetRect.y() * ratio,
-                      m_targetRect.width() * ratio, m_targetRect.height() * ratio);
+    QRect captureRect = m_targetRect.adjusted(1, 1, -1, -1);
+    QRectF deviceRect(captureRect.x() * ratio, captureRect.y() * ratio,
+                      captureRect.width() * ratio, captureRect.height() * ratio);
     QImage frame = full.copy(deviceRect.toAlignedRect()).toImage();
 
     // Fail-Fast：抓取失败时取消

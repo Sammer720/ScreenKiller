@@ -47,15 +47,15 @@ cv::Mat ImageStitcher::qImageToMat(const QImage& img)
     {
         return {};
     }
-    // 统一转成 Format_RGBA8888
+    // Format_RGBA8888 是 byte-ordered 格式，内存恒为 [R,G,B,A]（与 CPU 字节序无关）
     QImage src = img.convertToFormat(QImage::Format_RGBA8888);
-    // Format_RGBA8888 在 little-endian（x86 Windows）上内存字节序为 B,G,R,A，
-    // 即 cv::Mat 的 BGRA 格式，无需额外转换，COLOR_BGRA2GRAY 可直接处理。
     cv::Mat mat(src.height(), src.width(), CV_8UC4,
                 const_cast<uchar*>(src.constBits()),
                 static_cast<size_t>(src.bytesPerLine()));
     // 复制一份独立内存（QImage 析构后 cv::Mat 引用会失效）
     cv::Mat cloned = mat.clone();
+    // RGBA→BGRA：交换 R/B 通道以符合 OpenCV 约定
+    cv::cvtColor(cloned, cloned, cv::COLOR_RGBA2BGRA);
     return cloned;
 }
 
@@ -153,8 +153,8 @@ int ImageStitcher::computeOverlap(const QImage& prev, const QImage& next, double
     }
 
     // maxLoc.y 是 strip 顶部在下一帧中的 y 坐标
-    // 重叠行数 = prevGray.rows - maxLoc.y
-    int overlap = prevGray.rows - maxLoc.y;
+    // 滚动偏移 S = H - stripH - maxLoc.y，重叠 = H - S = stripH + maxLoc.y
+    int overlap = stripH + maxLoc.y;
     // 异常重叠返回 0
     if ((overlap < 0) || (overlap >= prevGray.rows))
     {
