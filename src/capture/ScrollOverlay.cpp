@@ -10,11 +10,12 @@
 #include <QLabel>
 #include <QPushButton>
 #include <QScreen>
+#include <qsizepolicy.h>
 
 namespace {
 
 /// \brief 浮窗默认宽度
-constexpr int G_OVERLAY_WIDTH = 440;
+constexpr int G_OVERLAY_WIDTH = 480;
 /// \brief 浮窗默认高度
 constexpr int G_OVERLAY_HEIGHT = 56;
 /// \brief 浮窗距离屏幕顶部偏移
@@ -33,10 +34,12 @@ ScrollOverlay::ScrollOverlay(QWidget* parent)
     // 标题：提示用户操作
     m_titleLabel = new QLabel(tr("鼠标滚动目标窗口截屏"), this);
     m_titleLabel->setObjectName(QStringLiteral("scrollOverlayTitle"));
+    m_titleLabel->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
 
     // 帧数
     m_countLabel = new QLabel(tr("已捕获 0 帧"), this);
     m_countLabel->setObjectName(QStringLiteral("scrollOverlayCount"));
+    m_countLabel->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
 
     // 完成按钮
     m_finishButton = new QPushButton(tr("完成"), this);

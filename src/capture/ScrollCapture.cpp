@@ -90,6 +90,9 @@ static bool isBlackFrame(const QImage& frame,
 ScrollCapture::ScrollCapture(QObject* parent)
     : QObject(parent)
 {
+    // frameProcessed 从工作线程发出，跨线程自动 QueuedConnection
+    connect(this, &ScrollCapture::frameProcessed,
+            this, &ScrollCapture::onFrameProcessed);
 }
 
 ScrollCapture::~ScrollCapture()
