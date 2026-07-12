@@ -47,16 +47,15 @@ cv::Mat ImageStitcher::qImageToMat(const QImage& img)
     {
         return {};
     }
-    // 统一转成 Format_RGBA8888 -> BGRA
+    // 统一转成 Format_RGBA8888
     QImage src = img.convertToFormat(QImage::Format_RGBA8888);
-    // RGBA8888 在内存中是 R G B A，与 cv::Mat 的 BGRA 通道顺序相反，
-    // 直接构造 + cvtColor 即可
+    // Format_RGBA8888 在 little-endian（x86 Windows）上内存字节序为 B,G,R,A，
+    // 即 cv::Mat 的 BGRA 格式，无需额外转换，COLOR_BGRA2GRAY 可直接处理。
     cv::Mat mat(src.height(), src.width(), CV_8UC4,
                 const_cast<uchar*>(src.constBits()),
                 static_cast<size_t>(src.bytesPerLine()));
     // 复制一份独立内存（QImage 析构后 cv::Mat 引用会失效）
     cv::Mat cloned = mat.clone();
-    cv::cvtColor(cloned, cloned, cv::COLOR_RGBA2BGRA);
     return cloned;
 }
 
@@ -131,6 +130,11 @@ int ImageStitcher::computeOverlap(const QImage& prev, const QImage& next, double
     cv::Rect searchRect(0, 0, nextGray.cols, searchH);
     cv::Mat searchArea = nextGray(searchRect);
 
+    SK_LOG_INFO() << "模板匹配参数: stripH=" << stripH
+                  << " searchH=" << searchH
+                  << " prevH=" << prevGray.rows
+                  << " nextH=" << nextGray.rows;
+
     // 模板匹配
     cv::Mat result;
     cv::matchTemplate(searchArea, tmpl, result, cv::TM_CCOEFF_NORMED);
@@ -140,6 +144,8 @@ int ImageStitcher::computeOverlap(const QImage& prev, const QImage& next, double
     cv::Point minLoc, maxLoc;
     cv::minMaxLoc(result, &minVal, &maxVal, &minLoc, &maxLoc);
 
+    SK_LOG_INFO() << "模板匹配结果: maxVal=" << maxVal << " maxLoc=(" << maxLoc.x << "," << maxLoc.y << ")";
+
     if (confidence != nullptr)
     {
         *confidence = maxVal;
@@ -148,7 +154,7 @@ int ImageStitcher::computeOverlap(const QImage& prev, const QImage& next, double
     // 置信度过低时返回 0
     if (maxVal < m_minConfidence)
     {
-        SK_LOG_WARN() << "模板匹配置信度过低：" << maxVal;
+        SK_LOG_WARN() << "模板匹配置信度" << maxVal << "低于阈值" << m_minConfidence << "，跳过重叠检测";
         // 此处可回退到 ORB 特征匹配，骨架版本暂略
         return G_INVALID_OVERLAP;
     }

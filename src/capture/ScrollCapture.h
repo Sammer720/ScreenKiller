@@ -6,15 +6,14 @@
  *   1. start() 先让用户框选要截屏的目标窗口 / 区域
  *   2. onRegionSelected() 用 WindowFromPoint 探测选区中心所在窗口
  *   3. 安装 MouseWheelHook 全局监听鼠标滚轮，显示 ScrollOverlay 提示浮窗
- *   4. 用户每向下滚动一次滚轮，经过去抖后抓取一帧
- *   5. 用户点击「完成」后，调用 ImageStitcher 进行垂直拼接
+ *   4. 滚轮事件按 px 阈值累积，达到阈值后抓取一帧（不再使用定时器去抖）
+ *   5. 用户点击「完成」后，抓取最后一帧再调用 ImageStitcher 进行垂直拼接
  *   6. emit captureFinished(mergedImage)
  */
 #pragma once
 
 #include <QObject>
 #include <QImage>
-#include <QTimer>
 #include <QVector>
 #include <QRect>
 
@@ -25,6 +24,7 @@
 class RegionSelector;
 class ImageStitcher;
 class MouseWheelHook;
+class KeyboardHook;
 class ScrollOverlay;
 
 /**
@@ -60,10 +60,10 @@ public:
     void setMaxFrames(int n)        { m_maxFrames = n; }
 
     /**
-     * @brief 设置滚轮去抖时间（毫秒）
-     * @param ms 去抖时间
+     * @brief 设置滚轮触发截屏的像素阈值
+     * @param px 累积滚动像素阈值
      */
-    void setDebounceMs(int ms)      { m_debounceMs = ms; }
+    void setScrollPxThreshold(int px) { m_scrollPxThreshold = px; }
 
 Q_SIGNALS:
     /**
@@ -102,11 +102,6 @@ private Q_SLOTS:
      * @param pos 滚轮事件发生时的屏幕坐标
      */
     void onWheelScrolled(int delta, const QPoint& pos);
-
-    /**
-     * @brief 去抖超时槽：实际执行抓帧
-     */
-    void onDebounceTimeout();
 
     /**
      * @brief 用户点击完成
@@ -149,16 +144,16 @@ private:
     RegionSelector*    m_selector    = nullptr;  ///< 区域选择器
     ImageStitcher*     m_stitcher    = nullptr;  ///< 图像拼接器
     MouseWheelHook*    m_hook        = nullptr;  ///< 鼠标滚轮钩子
+    KeyboardHook*      m_keyboardHook = nullptr; ///< 键盘钩子（Esc/Enter 拦截）
     ScrollOverlay*     m_overlay     = nullptr;  ///< 操作提示浮窗
-    QTimer             m_debounceTimer;            ///< 滚轮去抖定时器
-
     QRect              m_targetRect;               ///< 屏幕坐标的截屏区域
     HWND               m_targetHwnd  = nullptr;    ///< 滚动目标窗口句柄
 
     QVector<QImage>    m_frames;                   ///< 已抓取的帧列表
     int                m_frameCount  = 0;        ///< 已抓取帧数
 
-    int                m_maxFrames   = 60;         ///< 最大帧数
-    int                m_debounceMs  = 200;        ///< 滚轮去抖时间（毫秒）
-    State              m_state       = State::Idle; ///< 当前状态
+    int                m_maxFrames        = 60;   ///< 最大帧数
+    int                m_accumulatedDelta = 0;    ///< 累积滚动像素值
+    int                m_scrollPxThreshold = 10;  ///< 触发截屏的滚动像素阈值
+    State              m_state            = State::Idle; ///< 当前状态
 };

@@ -169,6 +169,7 @@ set(APP_SOURCES
 
     # 平台层
     src/platform/MouseWheelHook.cpp
+    src/platform/KeyboardHook.cpp
     src/platform/WinApi.cpp
 
     # UI 组件
@@ -204,6 +205,7 @@ set(APP_HEADERS
     src/annotation/items/TextItem.h
 
     src/platform/MouseWheelHook.h
+    src/platform/KeyboardHook.h
     src/platform/WinApi.h
 
     src/ui/ToolBar.h

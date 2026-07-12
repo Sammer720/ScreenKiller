@@ -6,7 +6,6 @@
 
 #include <QGuiApplication>
 #include <QScreen>
-#include <QTimer>
 #include <QPixmap>
 #include <QWidget>
 
@@ -17,6 +16,7 @@
 #include "RegionSelector.h"
 #include "ScrollOverlay.h"
 #include "platform/MouseWheelHook.h"
+#include "platform/KeyboardHook.h"
 #include "stitcher/ImageStitcher.h"
 #include "utils/Logger.h"
 #include "utils/MessageBox.h"
@@ -27,17 +27,12 @@ namespace {
 const WId G_FULLSCREEN_WID = 0;
 /// \brief 单帧场景标志（仅一帧时无需拼接）
 constexpr int G_SINGLE_FRAME = 1;
-/// \brief 默认去抖时间（毫秒）
-constexpr int G_DEFAULT_DEBOUNCE_MS = 200;
 
 } // namespace
 
 ScrollCapture::ScrollCapture(QObject* parent)
     : QObject(parent)
 {
-    m_debounceTimer.setSingleShot(true);
-    connect(&m_debounceTimer, &QTimer::timeout,
-            this, &ScrollCapture::onDebounceTimeout);
 }
 
 ScrollCapture::~ScrollCapture()
@@ -49,6 +44,9 @@ ScrollCapture::~ScrollCapture()
 
     delete m_hook;
     m_hook = nullptr;
+
+    delete m_keyboardHook;
+    m_keyboardHook = nullptr;
 }
 
 void ScrollCapture::start()
@@ -118,6 +116,17 @@ void ScrollCapture::onRegionSelected(const QRect& rect)
     }
     m_hook->install();
 
+    // 安装键盘钩子，拦截 Esc（取消）和 Enter（完成）
+    if (m_keyboardHook == nullptr)
+    {
+        m_keyboardHook = new KeyboardHook(this);
+        connect(m_keyboardHook, &KeyboardHook::cancelTriggered,
+                this, &ScrollCapture::onCancelRequested);
+        connect(m_keyboardHook, &KeyboardHook::finishTriggered,
+                this, &ScrollCapture::onFinishRequested);
+    }
+    m_keyboardHook->install();
+
     // 显示提示浮窗
     if (m_overlay == nullptr)
     {
@@ -160,16 +169,13 @@ void ScrollCapture::onWheelScrolled(int delta, const QPoint& pos)
         return;
     }
 
-    // 去抖：重新启动定时器
-    m_debounceTimer.start(m_debounceMs);
-}
-
-void ScrollCapture::onDebounceTimeout()
-{
-    if (m_state != State::Capturing)
+    // 累积滚动像素值，达到阈值时抓帧（不再使用定时器去抖）
+    m_accumulatedDelta += qAbs(delta);
+    if (m_accumulatedDelta < m_scrollPxThreshold)
     {
         return;
     }
+    m_accumulatedDelta = 0;
 
     captureFrame();
 
@@ -194,6 +200,10 @@ void ScrollCapture::onFinishRequested()
     }
 
     stopListening();
+
+    // 最后一次截屏，确保捕获当前最终画面
+    captureFrame();
+
     finishStitching();
 }
 
@@ -225,27 +235,13 @@ void ScrollCapture::captureFrame()
         return;
     }
 
-    // 抓取前临时隐藏遮罩，避免捕获到选区遮罩层
-    bool selectorVisible = (m_selector != nullptr) && m_selector->isVisible();
-    if (selectorVisible)
-    {
-        m_selector->hide();
-        // 等待窗口系统刷新
-        QGuiApplication::processEvents();
-    }
-
+    // 遮罩在选区内部已透明，无需隐藏即可直接抓取
     // 抓取屏幕 -> 裁剪到目标区域（含 DPI 校正）
     QPixmap full = screen->grabWindow(G_FULLSCREEN_WID);
     qreal ratio = full.devicePixelRatio();
     QRectF deviceRect(m_targetRect.x() * ratio, m_targetRect.y() * ratio,
                       m_targetRect.width() * ratio, m_targetRect.height() * ratio);
     QImage frame = full.copy(deviceRect.toAlignedRect()).toImage();
-
-    // 抓取完成后恢复遮罩
-    if (selectorVisible)
-    {
-        m_selector->show();
-    }
 
     // Fail-Fast：抓取失败时取消
     if (frame.isNull())
@@ -305,6 +301,11 @@ void ScrollCapture::stopListening()
     if (m_hook != nullptr)
     {
         m_hook->uninstall();
+    }
+
+    if (m_keyboardHook != nullptr)
+    {
+        m_keyboardHook->uninstall();
     }
 
     if (m_overlay != nullptr)

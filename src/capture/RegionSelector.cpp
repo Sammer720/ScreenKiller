@@ -18,6 +18,10 @@
 #include <qnamespace.h>
 #include <qtmetamacros.h>
 
+#ifdef Q_OS_WIN
+#  include <windows.h>
+#endif
+
 namespace {
 
 /// \brief 遮罩透明度（0-255）
@@ -80,6 +84,9 @@ void RegionSelector::start()
     m_endPos    = QPoint();
     m_selection = QRect();
 
+    // 每次启动时重新设置光标，因 close() 后原生窗口销毁重建会丢失光标
+    setCursor(Qt::CrossCursor);
+
     setupFullScreen();
     show();
     activateWindow();
@@ -122,12 +129,9 @@ void RegionSelector::paintEvent(QPaintEvent* event)
 
 void RegionSelector::drawSelectionHighlight(QPainter& painter)
 {
-    // 在选区位置"挖空"遮罩
-    QPainterPath path;
-    path.addRect(rect());
-    path.addRect(m_selection);
+    // 仅挖空选区内部，使框内区域透明可见（框外保留半透明遮罩）
     painter.setCompositionMode(QPainter::CompositionMode_Clear);
-    painter.fillPath(path, Qt::transparent);
+    painter.fillRect(m_selection, Qt::transparent);
     painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
 
     // Windows11 风格浅蓝色边框
@@ -228,6 +232,21 @@ void RegionSelector::mouseReleaseEvent(QMouseEvent* event)
                 // 保持遮罩可见，让鼠标事件穿透以便用户操作下层窗口
                 setAttribute(Qt::WA_TransparentForMouseEvents, true);
                 setCursor(Qt::ArrowCursor);
+
+#ifdef Q_OS_WIN
+                // 设置 WS_EX_TRANSPARENT 让 OS 层将鼠标事件传递到下层窗口
+                // 仅靠 Qt 的 WA_TransparentForMouseEvents 无法让 OS 重派发事件
+                // 设置 WS_EX_TRANSPARENT 让 OS 将鼠标事件穿透到下层窗口
+                // WA_TranslucentBackground 已在构造时设置 WS_EX_LAYERED
+                // 此处只需追加 WS_EX_TRANSPARENT
+                HWND hwnd = reinterpret_cast<HWND>(winId());
+                if (hwnd != nullptr)
+                {
+                    LONG exStyle = GetWindowLongW(hwnd, GWL_EXSTYLE);
+                    SetWindowLongW(hwnd, GWL_EXSTYLE,
+                                   exStyle | WS_EX_TRANSPARENT);
+                }
+#endif
             }
             else
             {

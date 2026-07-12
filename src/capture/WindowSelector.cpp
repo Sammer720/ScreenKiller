@@ -154,27 +154,30 @@ void WindowSelector::paintEvent(QPaintEvent* event)
     Q_UNUSED(event);
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing, true);
-    painter.fillRect(rect(), QColor(0, 0, 0, G_MASK_ALPHA));
 
-    // 有当前高亮窗口时绘制
     if (!m_currentRect.isNull() && (m_currentHwnd != nullptr))
     {
+        // 取反遮罩：用路径仅填充框外区域，框内不填充（保持透明可见）
+        QPainterPath path;
+        path.addRect(rect());
+        path.addRect(m_currentRect);
+        painter.fillPath(path, QColor(0, 0, 0, G_MASK_ALPHA));
+
+        // 框内填充极低 alpha（1/255）以确保鼠标事件被本窗口捕获而非穿透到下层窗口
+        painter.fillRect(m_currentRect, QColor(0, 0, 0, 1));
+
         drawWindowHighlight(painter);
+    }
+    else
+    {
+        painter.fillRect(rect(), QColor(0, 0, 0, G_MASK_ALPHA));
     }
 }
 
 void WindowSelector::drawWindowHighlight(QPainter& painter)
 {
 #ifdef Q_OS_WIN
-    // 挖空高亮区
-    QPainterPath path;
-    path.addRect(rect());
-    path.addRect(m_currentRect);
-    painter.setCompositionMode(QPainter::CompositionMode_Clear);
-    painter.fillPath(path, Qt::transparent);
-    painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
-
-    // 高亮边框
+    // 高亮边框（遮罩处理已在 paintEvent 中完成）
     QPen pen(QColor(G_ACCENT_R, G_ACCENT_G, G_ACCENT_B, G_BORDER_ALPHA));
     pen.setWidth(G_BORDER_WIDTH);
     painter.setPen(pen);
