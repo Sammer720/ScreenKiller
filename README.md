@@ -350,7 +350,38 @@ CMakeLists.txt 已配置 `copy_directory` 自动拷贝 OpenCV DLL 到输出目�
 
 ---
 
-## 7. 后续路线图
+## 7. 打包与分发
+
+### 7.1 前置：安装 NSIS
+
+- 下载 https://nsis.sourceforge.io/Download **NSIS 3.x**（不支持 2.x，CPack 用 NSIS 3 特性），装到默认路径（`makensis` 自动入 PATH）
+- 验证：`makensis -version` 输出版本号
+
+### 7.2 打包命令
+
+```bash
+cmake --build --preset user-release
+cd build/user-release
+cpack
+```
+
+### 7.3 产物
+
+- `build/dist/ScreenKiller-0.1.0-win64.exe` — NSIS 安装向导（开始菜单快捷方式 + 卸载入口）
+- `build/dist/ScreenKiller-0.1.0-win64.zip` — Portable 免安装包（含 `portable.txt` 标记）
+
+### 7.4 Portable 用法
+
+- 解压 zip 到任意目录 → 同目录已有 `portable.txt` → 运行 `ScreenKiller.exe` → 配置落在 **exe 同目录**（删文件夹即净）
+- 删除 `portable.txt` 则改回 `%APPDATA%` 配置路径
+
+### 7.5 SmartScreen 警告
+
+- 未数字签名，Windows SmartScreen 首次运行拦截 → 点「更多信息」→「仍要运行」
+
+---
+
+## 8. 后续路线图
 
 - [ ] 工具属性面板（颜色 / 线宽 / 字体）接入 ToolBar
 - [ ] 截屏成果预览工具（放大缩小和拖动）
@@ -360,6 +391,6 @@ CMakeLists.txt 已配置 `copy_directory` 自动拷贝 OpenCV DLL 到输出目�
 
 ---
 
-## 8. 许可证
+## 9. 许可证
 
 MIT License · Copyright (c) 2026 Sammer
