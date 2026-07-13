@@ -1,0 +1,15 @@
+Third Party Licenses
+====================
+
+ScreenKiller 使用了以下第三方库：
+
+1. Qt 6.x — GNU Lesser General Public License v3 (LGPLv3)
+   - 动态链接，用户可替换 Qt DLL
+   - 许可证全文：https://www.qt.io/licensing
+   - 合规声明：本 0.1.0 WIP 版本附 Qt 许可证文本与"可替换 DLL"声明，尚未附 Qt 源码或书面要约（written offer）；正式 release 前补全。
+
+2. OpenCV 5.x — Apache License 2.0
+   - 许可证全文：https://opencv.org/license
+
+3. Windows 系统库（user32/gdi32/dwmapi/shell32/comctl32/advapi32）
+   - Windows 系统组件，随 OS 分发，不可独立分发
