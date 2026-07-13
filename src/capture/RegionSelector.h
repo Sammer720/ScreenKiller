@@ -99,6 +99,12 @@ protected:
      */
     void mouseReleaseEvent(QMouseEvent* event) override;
 
+    /**
+     * @brief 鼠标离开事件：重置光标状态
+     * @param event 鼠标离开事件（QEvent）
+     */
+    void leaveEvent(QEvent* event) override;
+
 private:
     /**
      * @brief 设置跨屏全屏几何
@@ -117,10 +123,25 @@ private:
      */
     void drawSizeTag(QPainter& painter);
 
+    /**
+     * @brief 绘制反色十字光标
+     * @param painter 画笔
+     */
+    void drawCrosshair(QPainter& painter);
+
+    /**
+     * @brief 计算指定像素位置的反色
+     * @param pos 屏幕坐标
+     * @return 反色颜色
+     */
+    QColor computeInverseColor(const QPoint& pos) const;
+
 private:
     bool     m_dragging  = false;  ///< 是否正在拖拽
     QPoint   m_startPos;          ///< 拖拽起点
     QPoint   m_endPos;            ///< 拖拽当前点
     QRect    m_selection;         ///< 当前选区
     bool     m_keepOpen = false;  ///< 选区确认后是否保持遮罩不关闭
+    QImage   m_screenCapture;     ///< 全屏截图（用于反色十字光标取色）
+    QPoint   m_cursorPos{-1, -1}; ///< 当前光标位置（用于反色十字光标）
 };

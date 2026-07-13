@@ -18,6 +18,7 @@
 
 #include "app/MainWindow.h"
 #include "ui/Style.h"
+#include "utils/Logger.h"
 
 namespace {
 
@@ -47,6 +48,13 @@ int main(int argc, char* argv[])
     QApplication::setApplicationVersion(G_APP_VERSION);
     // 配置 QSettings 默认使用 INI 文件（而非 Windows 注册表），全局唯一配置源
     QSettings::setDefaultFormat(QSettings::IniFormat);
+    // portable.txt 双模式：exe 同目录有标记文件则配置写 exe 同目录，否则走 %APPDATA%
+    const QString appDir = QCoreApplication::applicationDirPath();
+    if (QFile::exists(appDir + QStringLiteral("/portable.txt")))
+    {
+        QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, appDir);
+        SK_LOG_INFO() << "Portable mode: config redirected to" << appDir;
+    }
     // 关闭主窗口后仍驻留托盘
     QApplication::setQuitOnLastWindowClosed(false);
 
