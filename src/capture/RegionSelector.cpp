@@ -50,6 +50,10 @@ constexpr int G_TAG_BG_ALPHA = 220;
 constexpr int G_MIN_SELECTION_SIZE = 2;
 /// \brief 选区绘制最小可见宽度
 constexpr int G_MIN_VISIBLE_WIDTH = 1;
+/// \brief 十字光标暗色描边宽度（像素）
+constexpr int G_CROSSHAIR_OUTLINE_WIDTH = 3;
+/// \brief 十字光标反色主体线宽（像素）
+constexpr int G_CROSSHAIR_LINE_WIDTH = 1;
 
 } // namespace
 
@@ -61,7 +65,8 @@ RegionSelector::RegionSelector(QWidget* parent)
                    | Qt::Tool);
     setAttribute(Qt::WA_TranslucentBackground, true);
     setAttribute(Qt::WA_DeleteOnClose, false);
-    setCursor(Qt::CrossCursor);
+    setCursor(Qt::BlankCursor);
+    setMouseTracking(true);
 }
 
 RegionSelector::~RegionSelector() = default;
@@ -73,6 +78,8 @@ void RegionSelector::setKeepOpen(bool keep)
 
 void RegionSelector::finish()
 {
+    // 清理预截屏数据，释放内存
+    m_screenCapture = QImage();
     close();
 }
 
@@ -84,8 +91,16 @@ void RegionSelector::start()
     m_endPos    = QPoint();
     m_selection = QRect();
 
+    // 预截屏全屏画面，用于反色十字光标实时取色
+    QScreen* screen = QGuiApplication::primaryScreen();
+    if (screen != nullptr)
+    {
+        m_screenCapture = screen->grabWindow(0).toImage();
+    }
+    m_cursorPos = QPoint(-1, -1);
+
     // 每次启动时重新设置光标，因 close() 后原生窗口销毁重建会丢失光标
-    setCursor(Qt::CrossCursor);
+    setCursor(Qt::BlankCursor);
 
     setupFullScreen();
     show();
@@ -125,6 +140,9 @@ void RegionSelector::paintEvent(QPaintEvent* event)
     {
         drawSelectionHighlight(painter);
     }
+
+    // 绘制反色十字光标（始终显示，不受选区状态影响）
+    drawCrosshair(painter);
 }
 
 void RegionSelector::drawSelectionHighlight(QPainter& painter)
@@ -170,6 +188,98 @@ void RegionSelector::drawSizeTag(QPainter& painter)
 }
 
 // -----------------------------------------------------------------------------
+// 反色十字光标
+// -----------------------------------------------------------------------------
+
+/// @brief 计算指定光标位置在预截屏画面上的反色
+///
+/// 处理逻辑：
+///   1. 空截屏保护，直接返回白色
+///   2. 将控件坐标转换为预截屏图像的像素坐标（含 virtualGeometry 偏移 + DPI 缩放）
+///   3. 边界检查，超出边界返回白色
+///   4. 读取像素后按遮罩混合公式还原实际显示颜色
+///   5. 取反返回
+///
+/// @param pos 光标在控件内的坐标（相对当前窗口左上角）
+/// @return 反色后的颜色值
+QColor RegionSelector::computeInverseColor(const QPoint& pos) const
+{
+    if (m_screenCapture.isNull())
+    {
+        return Qt::white;
+    }
+
+    // 获取虚拟屏幕偏移量，跨屏场景下修正坐标
+    QScreen* primary = QGuiApplication::primaryScreen();
+    QPoint geoOffset = (primary != nullptr) ? primary->virtualGeometry().topLeft()
+                                            : QPoint(0, 0);
+    qreal ratio = m_screenCapture.devicePixelRatio();
+
+    // 将控件坐标映射到预截屏图像的像素坐标
+    int imgX = static_cast<int>((pos.x() - geoOffset.x()) * ratio);
+    int imgY = static_cast<int>((pos.y() - geoOffset.y()) * ratio);
+
+    // 边界检查，防止越界访问
+    if ((imgX < 0) || (imgX >= m_screenCapture.width())
+        || (imgY < 0) || (imgY >= m_screenCapture.height()))
+    {
+        return Qt::white;
+    }
+
+    // 读取原始像素，并按遮罩透明度混合公式还原实际显示颜色
+    QRgb pixel = m_screenCapture.pixel(imgX, imgY);
+    int r = qRed(pixel)   * (255 - G_MASK_ALPHA) / 255;
+    int g = qGreen(pixel) * (255 - G_MASK_ALPHA) / 255;
+    int b = qBlue(pixel)  * (255 - G_MASK_ALPHA) / 255;
+
+    return QColor(255 - r, 255 - g, 255 - b);
+}
+
+/// @brief 绘制反色十字光标
+///
+/// 绘制逻辑：
+///   1. 光标位置无效（m_cursorPos 为负值）时直接返回
+///   2. 计算光标所在像素的反色
+///   3. 临时关闭抗锯齿，先绘制 3px 暗色描边，再绘制 1px 反色主体
+///   4. 恢复抗锯齿状态
+///
+/// @param painter 画笔引用
+void RegionSelector::drawCrosshair(QPainter& painter)
+{
+    if ((m_cursorPos.x() < 0) || (m_cursorPos.y() < 0))
+    {
+        return;
+    }
+
+    QColor inverseColor = computeInverseColor(m_cursorPos);
+
+    // 临时禁用抗锯齿，确保十字线清晰锐利
+    bool savedAA = painter.renderHints().testFlag(QPainter::Antialiasing);
+    painter.setRenderHint(QPainter::Antialiasing, false);
+
+    // 1. 暗色描边（3px），在黑暗背景上提供轮廓可见性
+    QPen outlinePen(QColor(0, 0, 0, 180));
+    outlinePen.setWidth(G_CROSSHAIR_OUTLINE_WIDTH);
+    painter.setPen(outlinePen);
+    painter.drawLine(0,                     m_cursorPos.y(),
+                     width(),               m_cursorPos.y());
+    painter.drawLine(m_cursorPos.x(),       0,
+                     m_cursorPos.x(),       height());
+
+    // 2. 反色主体（1px），精确标示光标位置
+    QPen mainPen(inverseColor);
+    mainPen.setWidth(G_CROSSHAIR_LINE_WIDTH);
+    painter.setPen(mainPen);
+    painter.drawLine(0,                     m_cursorPos.y(),
+                     width(),               m_cursorPos.y());
+    painter.drawLine(m_cursorPos.x(),       0,
+                     m_cursorPos.x(),       height());
+
+    // 恢复抗锯齿状态
+    painter.setRenderHint(QPainter::Antialiasing, savedAA);
+}
+
+// -----------------------------------------------------------------------------
 // 事件
 // -----------------------------------------------------------------------------
 void RegionSelector::keyPressEvent(QKeyEvent* event)
@@ -204,6 +314,10 @@ void RegionSelector::mousePressEvent(QMouseEvent* event)
 
 void RegionSelector::mouseMoveEvent(QMouseEvent* event)
 {
+    // 实时追踪光标位置，用于反色十字光标绘制
+    m_cursorPos = event->pos();
+    update();
+
     if (m_dragging)
     {
         m_endPos = event->pos();
@@ -232,6 +346,8 @@ void RegionSelector::mouseReleaseEvent(QMouseEvent* event)
                 // 保持遮罩可见，让鼠标事件穿透以便用户操作下层窗口
                 setAttribute(Qt::WA_TransparentForMouseEvents, true);
                 setCursor(Qt::ArrowCursor);
+                m_cursorPos = QPoint(-1, -1);
+                update();
 
 #ifdef Q_OS_WIN
                 // 设置 WS_EX_TRANSPARENT 让 OS 层将鼠标事件传递到下层窗口
@@ -260,4 +376,12 @@ void RegionSelector::mouseReleaseEvent(QMouseEvent* event)
             close();
         }
     }
+}
+
+void RegionSelector::leaveEvent(QEvent* event)
+{
+    // 鼠标离开窗口时隐藏十字光标并强制重绘
+    m_cursorPos = QPoint(-1, -1);
+    update();
+    QWidget::leaveEvent(event);
 }

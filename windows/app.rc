@@ -1,0 +1,36 @@
+// ScreenKiller Windows 资源文件
+#pragma code_page(65001)
+#include <windows.h>
+
+// 应用程序图标（多尺寸 ICO 容器，16-256px）
+IDI_APP_ICON ICON "../resources/icons/app.ico"
+
+// 版本信息
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION 0,1,0,0
+ PRODUCTVERSION 0,1,0,0
+ FILEFLAGSMASK 0x3fL
+ FILEFLAGS 0x0L
+ FILEOS VOS_NT_WINDOWS32
+ FILETYPE VFT_APP
+ FILESUBTYPE 0x0L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "080404B0"
+        BEGIN
+            VALUE "CompanyName", "Sammer"
+            VALUE "FileDescription", "Windows 长截图与图像标注工具"
+            VALUE "FileVersion", "0.1.0.0"
+            VALUE "InternalName", "ScreenKiller"
+            VALUE "LegalCopyright", "Copyright (c) 2026 Sammer"
+            VALUE "OriginalFilename", "ScreenKiller.exe"
+            VALUE "ProductName", "ScreenKiller"
+            VALUE "ProductVersion", "0.1.0.0"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x804, 1200
+    END
+END
