@@ -223,6 +223,13 @@ set(APP_RESOURCES
     resources/resources.qrc
 )
 
+# Windows 资源文件（exe 文件图标 + 版本信息）
+if(WIN32)
+    set(APP_RESOURCES_WIN
+        windows/app.rc
+    )
+endif()
+
 # =============================================================================
 # 目标：可执行文件
 # 使用 qt_add_executable 而非 add_executable，自动处理：
@@ -234,6 +241,7 @@ qt_add_executable(${PROJECT_NAME}
     ${APP_SOURCES}
     ${APP_HEADERS}
     ${APP_RESOURCES}
+    ${APP_RESOURCES_WIN}
 )
 
 # 强制指定 WIN32 GUI 子系统（确保不弹控制台黑框）
@@ -344,11 +352,63 @@ if(WIN32)
 endif()
 
 # =============================================================================
-# 安装规则（可选，便于打包）
+# 安装规则（供 CPack 打包；复用 windeployqt + copy_directory 已铺好的 bin 目录）
 # =============================================================================
-install(TARGETS ${PROJECT_NAME}
-    RUNTIME DESTINATION bin
+install(DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/ DESTINATION .
+        FILES_MATCHING
+        PATTERN "*.dll"
+        PATTERN "*.exe"
+        PATTERN "*.qm"
+        PATTERN "*.pdb"   EXCLUDE
+        PATTERN "*.ilk"   EXCLUDE
+        PATTERN "*.obj"   EXCLUDE
+        PATTERN "*.lib"   EXCLUDE
+        PATTERN "*.exp"   EXCLUDE)
+
+# 许可证文件入包（CPACK_RESOURCE_FILE_LICENSE 只供 NSIS license page 显示，不自动入安装目录/ZIP——CMake 官方明确）
+# 注意：此 install(FILES) 需 Todo 2 已创建 LICENSE/THIRD_PARTY_LICENSES.txt，否则 cmake --install 报错（Wave 1 已调序 Todo 2 先）
+install(FILES "${CMAKE_SOURCE_DIR}/LICENSE"
+             "${CMAKE_SOURCE_DIR}/THIRD_PARTY_LICENSES.txt"
+         DESTINATION .)
+
+# =============================================================================
+# CPack 打包配置（NSIS 安装器 + ZIP portable 双产物）
+# =============================================================================
+set(CPACK_GENERATOR "NSIS;ZIP")
+set(CPACK_SYSTEM_NAME "win64")
+set(CPACK_PACKAGE_NAME "ScreenKiller")
+set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
+set(CPACK_PACKAGE_VENDOR "Sammer")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Windows 长截图与图像标注工具")
+set(CPACK_PACKAGE_INSTALL_DIRECTORY "ScreenKiller")
+set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_SOURCE_DIR}/LICENSE")
+set(CPACK_OUTPUT_FILE_PREFIX "${CMAKE_SOURCE_DIR}/build/dist")
+set(CPACK_INSTALL_SCRIPTS "${CMAKE_SOURCE_DIR}/cmake/portable_marker.cmake")
+
+# 图标（程序 exe 图标通过 .rc 嵌入 app.ico，此处设置安装器/卸载器 exe 图标 + 向导品牌图）
+set(CPACK_NSIS_MUI_ICON "${CMAKE_SOURCE_DIR}/resources/icons/app_installer.ico")
+set(CPACK_NSIS_MUI_UNIICON "${CMAKE_SOURCE_DIR}/resources/icons/app_installer.ico")
+# CPACK_PACKAGE_ICON 需要 BMP 在构建目录可访问（NSIS File 命令使用原生路径格式）
+configure_file(
+    "${CMAKE_SOURCE_DIR}/resources/icons/app_installer.bmp"
+    "${CMAKE_BINARY_DIR}/app_installer.bmp"
+    COPYONLY
 )
+file(TO_NATIVE_PATH "${CMAKE_BINARY_DIR}/app_installer.bmp" _nsis_bmp_path)
+set(CPACK_PACKAGE_ICON "${_nsis_bmp_path}")
+
+# NSIS 特定
+set(CPACK_NSIS_DISPLAY_NAME "ScreenKiller")
+set(CPACK_NSIS_PACKAGE_NAME "ScreenKiller ${PROJECT_VERSION}")
+set(CPACK_NSIS_MODIFY_PATH OFF)
+set(CPACK_NSIS_ENABLE_UNINSTALL_BEFORE_INSTALL ON)
+set(CPACK_NSIS_EXECUTABLES_DIRECTORY ".")
+set(CPACK_NSIS_MANIFEST_DPI_AWARE ON)
+set(CPACK_NSIS_CREATE_ICONS_EXTRA
+     "CreateShortCut '$SMPROGRAMS\\\\$STARTMENU_FOLDER\\\\ScreenKiller.lnk' '$INSTDIR\\\\ScreenKiller.exe'")
+set(CPACK_NSIS_DELETE_ICONS_EXTRA
+     "Delete '$SMPROGRAMS\\\\$STARTMENU_FOLDER\\\\ScreenKiller.lnk'")
+include(CPack)
 
 # =============================================================================
 # 配置完成提示

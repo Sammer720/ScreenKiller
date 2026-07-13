@@ -80,6 +80,12 @@ protected:
      */
     void mouseMoveEvent(QMouseEvent* event) override;
 
+    /**
+     * @brief 鼠标离开事件：重置反色十字光标位置
+     * @param event 事件对象（可转为 QLeaveEvent）
+     */
+    void leaveEvent(QEvent* event) override;
+
 private:
     /**
      * @brief 设置跨屏全屏几何
@@ -107,8 +113,23 @@ private:
      */
     void drawWindowTitleTag(QPainter& painter);
 
+    /**
+     * @brief 绘制反色十字光标
+     * @param painter 画笔
+     */
+    void drawCrosshair(QPainter& painter);
+
+    /**
+     * @brief 计算指定位置的反色
+     * @param pos 屏幕坐标位置
+     * @return 反色后的颜色
+     */
+    QColor computeInverseColor(const QPoint& pos) const;
+
 private:
     HWND  m_currentHwnd = nullptr;  ///< 当前高亮窗口句柄
     QRect m_currentRect;             ///< 当前高亮窗口矩形（本 widget 坐标）
     HWND  m_overlayHwnd = nullptr;   ///< 本遮罩窗口的 HWND（Z-Order 遍历时跳过自身）
+    QImage m_screenCapture;          ///< 屏幕截图，用于反色十字光标像素采样
+    QPoint m_cursorPos{-1, -1};      ///< 当前鼠标位置（-1,-1 表示鼠标不在遮罩上）
 };
