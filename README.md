@@ -160,12 +160,15 @@ ScreenKiller 是一款 Windows 桌面端的「截图 + 标注」工具，具备�
 
 ```
 ScreenKiller/
-├── CMakeLists.txt                 # 主构建脚本（359 行）
+├── CMakeLists.txt                 # 主构建脚本（398 行）
 ├── CMakePresets.json              # 内置预设（msvc-debug / msvc-release）
 ├── CMakeUserPresets.json          # 用户预设（gitignored）
 ├── .clangd                        # clangd 配置（Qt6/OpenCV 头文件路径）
 ├── .editorconfig                  # 4 空格 / UTF-8 / LF / 去尾空白
 ├── AGENTS.md                      # OpenCode 会话速通指南
+│
+├── cmake/
+│   └── portable_marker.cmake      # CPack 安装钩子（portable.txt 注入）
 │
 ├── .vscode/                       # VSCode 工作区配置
 │   ├── c_cpp_properties.json
