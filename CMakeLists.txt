@@ -364,6 +364,32 @@ install(FILES "${CMAKE_SOURCE_DIR}/LICENSE"
          DESTINATION .)
 
 # =============================================================================
+# CPack 打包配置（NSIS 安装器 + ZIP portable 双产物）
+# =============================================================================
+set(CPACK_GENERATOR "NSIS;ZIP")
+set(CPACK_SYSTEM_NAME "win64")
+set(CPACK_PACKAGE_NAME "ScreenKiller")
+set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
+set(CPACK_PACKAGE_VENDOR "Sammer")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Windows 长截图与图像标注工具")
+set(CPACK_PACKAGE_INSTALL_DIRECTORY "ScreenKiller")
+set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_SOURCE_DIR}/LICENSE")
+set(CPACK_OUTPUT_FILE_PREFIX "${CMAKE_SOURCE_DIR}/build/dist")
+set(CPACK_INSTALL_SCRIPTS "${CMAKE_SOURCE_DIR}/cmake/portable_marker.cmake")
+
+# NSIS 特定
+set(CPACK_NSIS_DISPLAY_NAME "ScreenKiller")
+set(CPACK_NSIS_PACKAGE_NAME "ScreenKiller ${PROJECT_VERSION}")
+set(CPACK_NSIS_MODIFY_PATH OFF)
+set(CPACK_NSIS_ENABLE_UNINSTALL_BEFORE_INSTALL ON)
+set(CPACK_NSIS_EXECUTABLES_DIRECTORY ".")
+set(CPACK_NSIS_CREATE_ICONS_EXTRA
+     "CreateShortCut '$SMPROGRAMS\\\\$STARTMENU_FOLDER\\\\ScreenKiller.lnk' '$INSTDIR\\\\ScreenKiller.exe'")
+set(CPACK_NSIS_DELETE_ICONS_EXTRA
+     "Delete '$SMPROGRAMS\\\\$STARTMENU_FOLDER\\\\ScreenKiller.lnk'")
+include(CPack)
+
+# =============================================================================
 # 配置完成提示
 # =============================================================================
 message(STATUS "-----------------------------------------------------------")
