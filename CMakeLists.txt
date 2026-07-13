@@ -344,11 +344,24 @@ if(WIN32)
 endif()
 
 # =============================================================================
-# 安装规则（可选，便于打包）
+# 安装规则（供 CPack 打包；复用 windeployqt + copy_directory 已铺好的 bin 目录）
 # =============================================================================
-install(TARGETS ${PROJECT_NAME}
-    RUNTIME DESTINATION bin
-)
+install(DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/ DESTINATION .
+        FILES_MATCHING
+        PATTERN "*.dll"
+        PATTERN "*.exe"
+        PATTERN "*.qm"
+        PATTERN "*.pdb"   EXCLUDE
+        PATTERN "*.ilk"   EXCLUDE
+        PATTERN "*.obj"   EXCLUDE
+        PATTERN "*.lib"   EXCLUDE
+        PATTERN "*.exp"   EXCLUDE)
+
+# 许可证文件入包（CPACK_RESOURCE_FILE_LICENSE 只供 NSIS license page 显示，不自动入安装目录/ZIP——CMake 官方明确）
+# 注意：此 install(FILES) 需 Todo 2 已创建 LICENSE/THIRD_PARTY_LICENSES.txt，否则 cmake --install 报错（Wave 1 已调序 Todo 2 先）
+install(FILES "${CMAKE_SOURCE_DIR}/LICENSE"
+             "${CMAKE_SOURCE_DIR}/THIRD_PARTY_LICENSES.txt"
+         DESTINATION .)
 
 # =============================================================================
 # 配置完成提示
