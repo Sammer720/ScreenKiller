@@ -385,9 +385,9 @@ set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_SOURCE_DIR}/LICENSE")
 set(CPACK_OUTPUT_FILE_PREFIX "${CMAKE_SOURCE_DIR}/build/dist")
 set(CPACK_INSTALL_SCRIPTS "${CMAKE_SOURCE_DIR}/cmake/portable_marker.cmake")
 
-# 图标（exe 文件图标通过 .rc 嵌入，此处设置安装器/卸载器 exe 图标 + 向导品牌图）
-set(CPACK_NSIS_MUI_ICON "${CMAKE_SOURCE_DIR}/resources/icons/app.ico")
-set(CPACK_NSIS_MUI_UNIICON "${CMAKE_SOURCE_DIR}/resources/icons/app.ico")
+# 图标（程序 exe 图标通过 .rc 嵌入 app.ico，此处设置安装器/卸载器 exe 图标 + 向导品牌图）
+set(CPACK_NSIS_MUI_ICON "${CMAKE_SOURCE_DIR}/resources/icons/app_installer.ico")
+set(CPACK_NSIS_MUI_UNIICON "${CMAKE_SOURCE_DIR}/resources/icons/app_installer.ico")
 # CPACK_PACKAGE_ICON 需要 BMP 在构建目录可访问（NSIS File 命令使用原生路径格式）
 configure_file(
     "${CMAKE_SOURCE_DIR}/resources/icons/app_installer.bmp"
