@@ -223,6 +223,13 @@ set(APP_RESOURCES
     resources/resources.qrc
 )
 
+# Windows 资源文件（exe 文件图标 + 版本信息）
+if(WIN32)
+    set(APP_RESOURCES_WIN
+        windows/app.rc
+    )
+endif()
+
 # =============================================================================
 # 目标：可执行文件
 # 使用 qt_add_executable 而非 add_executable，自动处理：
@@ -234,6 +241,7 @@ qt_add_executable(${PROJECT_NAME}
     ${APP_SOURCES}
     ${APP_HEADERS}
     ${APP_RESOURCES}
+    ${APP_RESOURCES_WIN}
 )
 
 # 强制指定 WIN32 GUI 子系统（确保不弹控制台黑框）
@@ -376,6 +384,11 @@ set(CPACK_PACKAGE_INSTALL_DIRECTORY "ScreenKiller")
 set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_SOURCE_DIR}/LICENSE")
 set(CPACK_OUTPUT_FILE_PREFIX "${CMAKE_SOURCE_DIR}/build/dist")
 set(CPACK_INSTALL_SCRIPTS "${CMAKE_SOURCE_DIR}/cmake/portable_marker.cmake")
+
+# 图标（exe 文件图标通过 .rc 嵌入，此处设置安装器/卸载器 exe 图标 + 向导品牌图）
+set(CPACK_NSIS_MUI_ICON "${CMAKE_SOURCE_DIR}/resources/icons/app.ico")
+set(CPACK_NSIS_MUI_UNIICON "${CMAKE_SOURCE_DIR}/resources/icons/app.ico")
+set(CPACK_PACKAGE_ICON "${CMAKE_SOURCE_DIR}/resources/icons/app_installer.bmp")
 
 # NSIS 特定
 set(CPACK_NSIS_DISPLAY_NAME "ScreenKiller")
