@@ -388,13 +388,14 @@ set(CPACK_INSTALL_SCRIPTS "${CMAKE_SOURCE_DIR}/cmake/portable_marker.cmake")
 # 图标（exe 文件图标通过 .rc 嵌入，此处设置安装器/卸载器 exe 图标 + 向导品牌图）
 set(CPACK_NSIS_MUI_ICON "${CMAKE_SOURCE_DIR}/resources/icons/app.ico")
 set(CPACK_NSIS_MUI_UNIICON "${CMAKE_SOURCE_DIR}/resources/icons/app.ico")
-# CPACK_PACKAGE_ICON 需要 BMP 在构建目录可访问（NSIS File 命令不支持正斜杠绝对路径）
+# CPACK_PACKAGE_ICON 需要 BMP 在构建目录可访问（NSIS File 命令使用原生路径格式）
 configure_file(
     "${CMAKE_SOURCE_DIR}/resources/icons/app_installer.bmp"
     "${CMAKE_BINARY_DIR}/app_installer.bmp"
     COPYONLY
 )
-set(CPACK_PACKAGE_ICON "${CMAKE_BINARY_DIR}/app_installer.bmp")
+file(TO_NATIVE_PATH "${CMAKE_BINARY_DIR}/app_installer.bmp" _nsis_bmp_path)
+set(CPACK_PACKAGE_ICON "${_nsis_bmp_path}")
 
 # NSIS 特定
 set(CPACK_NSIS_DISPLAY_NAME "ScreenKiller")
