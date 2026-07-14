@@ -6,7 +6,7 @@ cmake_minimum_required(VERSION 3.21)
 
 # ---------- 项目信息 ----------
 project(ScreenKiller
-    VERSION 0.1.0
+    VERSION 1.1.0
     DESCRIPTION "Windows 长截图（滚动截屏）与图像标注工具"
     LANGUAGES CXX
 )

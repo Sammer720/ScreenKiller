@@ -7,7 +7,7 @@
 ![qt](https://img.shields.io/badge/Qt-6.11%2B-green)
 ![opencv](https://img.shields.io/badge/OpenCV-5.x-green)
 
-> **💾 直接下载发布版**：可从发行页面下载 **v1.1.0** 安装包 (`ScreenKiller-1.1.0-win64.exe`) 一键安装，或下载绿色免安装版压缩包 (`ScreenKiller-1.1.0-win64.zip`) 解压即用，无需配置编译环境。
+> **💾 直接下载发布版**：可从发行页面下载 **v1.1.0** 安装包 (`ScreenKiller_1.1.0_Win_x64_Setup.exe`) 一键安装，或下载绿色免安装版压缩包 (`ScreenKiller_1.1.0_Win_x64_Portable.zip`) 解压即用，无需配置编译环境。
 
 ---
 
