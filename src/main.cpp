@@ -27,7 +27,7 @@ const QString G_APP_NAME = QStringLiteral("ScreenKiller");
 /// \brief 组织名称
 const QString G_ORG_NAME = QStringLiteral("Sammer");
 /// \brief 应用版本号
-const QString G_APP_VERSION = QStringLiteral("0.1.0");
+const QString G_APP_VERSION = QStringLiteral("1.1.0");
 /// \brief QSS 样式表资源路径
 const QString G_QSS_PATH = QStringLiteral(":/styles/windows11_light.qss");
 
