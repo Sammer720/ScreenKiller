@@ -94,9 +94,15 @@ QToolButton:disabled {
 }
 
 QToolButton::menu-indicator {
-    image: none;
-    subcontrol-position: right center;
+    image: url(:/icons/drop_down.png);
+    subcontrol-position: right bottom;
     width: 8px;
+    height: 8px;
+}
+
+QToolButton::menu-indicator:open {
+    image: url(:/icons/drop_down_clicked.png);
+    subcontrol-position: right bottom;
 }
 
 /* ---------- 主截屏按钮（蓝紫强调） ---------- */

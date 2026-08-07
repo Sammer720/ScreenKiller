@@ -4,6 +4,8 @@
  */
 #include "ArrowItem.h"
 
+#include <algorithm>
+
 #include <QPainter>
 #include <QStyleOptionGraphicsItem>
 #include <QLineF>
@@ -41,9 +43,9 @@ QRectF ArrowItem::boundingRect() const
     ).adjusted(-margin, -margin, margin, margin);
 }
 
-void ArrowItem::paint(QPainter* painter,
-                      const QStyleOptionGraphicsItem* option,
-                      QWidget* widget)
+void ArrowItem::paintContent(QPainter* painter,
+                             const QStyleOptionGraphicsItem* option,
+                             QWidget* widget)
 {
     Q_UNUSED(option);
     Q_UNUSED(widget);
@@ -73,6 +75,52 @@ void ArrowItem::paint(QPainter* painter,
         painter->setBrush(m_pen.color());
         painter->drawPolygon(arrow);
     }
+}
+
+QRectF ArrowItem::resizeRect() const
+{
+    // 1. 取线段两端点坐标
+    auto p1 = m_line.p1();
+    auto p2 = m_line.p2();
+
+    // 2. 两端点的最小/最大坐标即为外接矩形的两个对角
+    return QRectF(
+        QPointF(std::min(p1.x(), p2.x()), std::min(p1.y(), p2.y())),
+        QPointF(std::max(p1.x(), p2.x()), std::max(p1.y(), p2.y()))
+    );
+}
+
+void ArrowItem::setResizeRect(const QRectF& newRect)
+{
+    // 1. 先取当前外接矩形作为缩放基准
+    QRectF oldRect = resizeRect();
+    qreal oldWidth  = oldRect.width();
+    qreal oldHeight = oldRect.height();
+
+    // 2. 除零保护：任一方向过短时无法计算缩放比例，
+    //    退化为直接把线段设为新矩形的对角线
+    if ((oldWidth < G_MIN_RESIZE_SIZE) || (oldHeight < G_MIN_RESIZE_SIZE))
+    {
+        setLine(QLineF(newRect.topLeft(), newRect.bottomRight()));
+        return;
+    }
+
+    // 3. 计算 x / y 两个方向的缩放比例
+    qreal scaleX = newRect.width() / oldWidth;
+    qreal scaleY = newRect.height() / oldHeight;
+
+    // 4. 两端点相对旧矩形原点偏移后按比例变换，再平移到新矩形原点
+    auto p1 = m_line.p1();
+    auto p2 = m_line.p2();
+    QPointF newP1(
+        newRect.x() + (p1.x() - oldRect.x()) * scaleX,
+        newRect.y() + (p1.y() - oldRect.y()) * scaleY
+    );
+    QPointF newP2(
+        newRect.x() + (p2.x() - oldRect.x()) * scaleX,
+        newRect.y() + (p2.y() - oldRect.y()) * scaleY
+    );
+    setLine(QLineF(newP1, newP2));
 }
 
 } // namespace SK

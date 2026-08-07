@@ -17,7 +17,7 @@ namespace SK {
 /**
  * @brief 文字标注图元
  *
- * 内部维护文本与字体，paint() 时绘制可选背景矩形+文字。
+ * 内部维护文本与字体，paintContent() 时绘制可选背景矩形+文字。
  */
 class TextItem : public BaseAnnotationItem
 {
@@ -30,9 +30,15 @@ public:
 
     /// @brief 返回包围盒（含边距）
     QRectF boundingRect() const override;
-    /// @brief 绘制背景与文字
-    void paint(QPainter* painter, const QStyleOptionGraphicsItem* option,
-               QWidget* widget = nullptr) override;
+    /// @brief 绘制背景与文字（由基类 NVI paint() 回调）
+    void paintContent(QPainter* painter, const QStyleOptionGraphicsItem* option,
+                      QWidget* widget = nullptr) override;
+
+    /// @brief 获取缩放参考矩形（文字包围盒）
+    QRectF resizeRect() const override;
+    /// @brief 按新的缩放矩形按比例调整字号
+    /// @param newRect 新的文字包围盒（局部坐标系）
+    void setResizeRect(const QRectF& newRect) override;
 
     /// @brief 设置文字内容
     /// @param t 文字

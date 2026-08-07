@@ -162,6 +162,7 @@ set(APP_SOURCES
     src/annotation/AnnotationView.cpp
     src/annotation/AnnotationScene.cpp
     src/annotation/UndoStack.cpp
+    src/annotation/items/BaseAnnotationItem.cpp
     src/annotation/items/RectangleItem.cpp
     src/annotation/items/EllipseItem.cpp
     src/annotation/items/ArrowItem.cpp

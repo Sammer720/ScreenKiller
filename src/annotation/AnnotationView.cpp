@@ -8,6 +8,7 @@
 #include "UndoStack.h"
 
 #include <QWheelEvent>
+#include <QMouseEvent>
 #include <QKeyEvent>
 #include <QResizeEvent>
 #include <QScrollBar>
@@ -28,11 +29,11 @@ AnnotationView::AnnotationView(SK::AnnotationScene* scene, QWidget* parent)
 {
     setRenderHints(QPainter::Antialiasing | QPainter::SmoothPixmapTransform
                    | QPainter::TextAntialiasing);
-    setDragMode(QGraphicsView::RubberBandDrag);
+    setDragMode(QGraphicsView::NoDrag);
     setCacheMode(QGraphicsView::CacheBackground);
     setViewportUpdateMode(QGraphicsView::BoundingRectViewportUpdate);
-    setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-    setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     setTransformationAnchor(QGraphicsView::AnchorUnderMouse);
     setResizeAnchor(QGraphicsView::AnchorViewCenter);
     setBackgroundBrush(QColor(G_BG_R, G_BG_G, G_BG_B));
@@ -56,20 +57,57 @@ void AnnotationView::fitToView()
 
 void AnnotationView::wheelEvent(QWheelEvent* event)
 {
-    // Ctrl + 滚轮 = 缩放
-    if ((event->modifiers() & Qt::ControlModifier) != 0)
+    // 滚轮向上放大、向下缩小
+    // AnchorUnderMouse 变换锚点已保证缩放以光标位置为中心
+    const qreal factor = (event->angleDelta().y() > 0)
+                         ? G_ZOOM_FACTOR
+                         : 1.0 / G_ZOOM_FACTOR;
+    scale(factor, factor);
+    event->accept();
+}
+
+void AnnotationView::mousePressEvent(QMouseEvent* event)
+{
+    // 中键按下：记录平移起点与滚动条初值，进入平移模式
+    if (event->button() == Qt::MiddleButton)
     {
-        const qreal factor = (event->angleDelta().y() > 0)
-                             ? G_ZOOM_FACTOR
-                             : 1.0 / G_ZOOM_FACTOR;
-        scale(factor, factor);
+        m_panning = true;
+        m_panStart = event->pos();
+        m_panStartHVal = horizontalScrollBar()->value();
+        m_panStartVVal = verticalScrollBar()->value();
+        setCursor(Qt::ClosedHandCursor);
         event->accept();
+        return;
     }
-    else
+    QGraphicsView::mousePressEvent(event);
+}
+
+void AnnotationView::mouseMoveEvent(QMouseEvent* event)
+{
+    // 平移模式：按鼠标位移反向滚动滚动条，实现"内容跟随鼠标"的拖拽手感
+    if (m_panning)
     {
-        // 普通滚轮交给基类处理垂直滚动
-        QGraphicsView::wheelEvent(event);
+        int dx = event->pos().x() - m_panStart.x();
+        int dy = event->pos().y() - m_panStart.y();
+        horizontalScrollBar()->setValue(m_panStartHVal - dx);
+        verticalScrollBar()->setValue(m_panStartVVal - dy);
+        event->accept();
+        return;
     }
+    QGraphicsView::mouseMoveEvent(event);
+}
+
+void AnnotationView::mouseReleaseEvent(QMouseEvent* event)
+{
+    // 中键释放：退出平移模式，恢复默认光标
+    if ((event->button() == Qt::MiddleButton) && m_panning)
+    {
+        m_panning = false;
+        setCursor(Qt::ArrowCursor);
+        event->accept();
+        return;
+    }
+    QGraphicsView::mouseReleaseEvent(event);
 }
 
 void AnnotationView::keyPressEvent(QKeyEvent* event)

@@ -15,7 +15,7 @@ namespace SK {
 /**
  * @brief 荧光笔图元
  *
- * 继承自 PenItem，复用路径数据，重写 paint() 实现半透明叠加效果。
+ * 继承自 PenItem，复用路径数据，重写 paintContent() 实现半透明叠加效果。
  */
 class HighlighterItem : public PenItem
 {
@@ -26,9 +26,9 @@ public:
      */
     explicit HighlighterItem(QGraphicsItem* parent = nullptr);
 
-    /// @brief 绘制（覆盖父类，使用半透明叠加）
-    void paint(QPainter* painter, const QStyleOptionGraphicsItem* option,
-               QWidget* widget = nullptr) override;
+    /// @brief 绘制（覆盖父类，使用半透明叠加，NVI 内容绘制入口）
+    void paintContent(QPainter* painter, const QStyleOptionGraphicsItem* option,
+                      QWidget* widget = nullptr) override;
 
     /// @brief 设置透明度
     /// @param a 0..255

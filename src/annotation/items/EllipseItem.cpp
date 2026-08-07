@@ -29,9 +29,9 @@ QRectF EllipseItem::boundingRect() const
     return m_rect.adjusted(-margin, -margin, margin, margin);
 }
 
-void EllipseItem::paint(QPainter* painter,
-                        const QStyleOptionGraphicsItem* option,
-                        QWidget* widget)
+void EllipseItem::paintContent(QPainter* painter,
+                               const QStyleOptionGraphicsItem* option,
+                               QWidget* widget)
 {
     Q_UNUSED(option);
     Q_UNUSED(widget);
@@ -40,6 +40,16 @@ void EllipseItem::paint(QPainter* painter,
     painter->setPen(m_pen);
     painter->setBrush(m_brush);
     painter->drawEllipse(m_rect);
+}
+
+QRectF EllipseItem::resizeRect() const
+{
+    return m_rect;
+}
+
+void EllipseItem::setResizeRect(const QRectF& newRect)
+{
+    setRect(newRect);
 }
 
 } // namespace SK

@@ -14,5 +14,7 @@
         <file>icons/minimize_hover.png</file>
         <file>icons/close.png</file>
         <file>icons/close_hover.png</file>
+        <file>icons/drop_down.png</file>
+        <file>icons/drop_down_clicked.png</file>
     </qresource>
 </RCC>

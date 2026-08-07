@@ -133,9 +133,7 @@ ToolBar::ToolBar(QWidget* parent)
 void ToolBar::setupActions()
 {
     // ---- 截屏按钮 ----
-    m_actCapture = new QAction(makeHoverIcon(G_ICON_CUT, G_ICON_CUT_HOVER),
-                                tr("截屏"), this);
-    m_actCapture->setToolTip(tr("开始截屏  (Ctrl+Alt+A)"));
+    m_actCapture = new QAction(makeHoverIcon(G_ICON_CUT, G_ICON_CUT_HOVER), tr("截屏"), this);
     m_actCapture->setShortcut(QKeySequence("Ctrl+Alt+A"));
     connect(m_actCapture, &QAction::triggered,
             this, &ToolBar::captureClicked);
@@ -148,8 +146,7 @@ void ToolBar::setupActions()
 
     // ---- 模式下拉 ----
     m_btnMode = new QToolButton(this);
-    m_btnMode->setText(tr("画框截图") + QStringLiteral(" ▾"));
-    m_btnMode->setToolTip(tr("切换截屏模式"));
+    m_btnMode->setText(tr("画框截图"));
     m_btnMode->setPopupMode(QToolButton::InstantPopup);
     m_btnMode->setObjectName("modeButton");
     m_btnMode->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
@@ -174,7 +171,7 @@ void ToolBar::setupActions()
         connect(action, &QAction::triggered, this,
                 [this, text, mode, iconPath]()
         {
-            m_btnMode->setText(text + QStringLiteral(" ▾"));
+            m_btnMode->setText(text);
             m_btnMode->setIcon(QIcon(iconPath));
             Q_EMIT captureModeChanged(mode);
         });
@@ -193,12 +190,10 @@ void ToolBar::setupActions()
     m_btnSave = new QToolButton(this);
     m_btnSave->setText(tr("保存"));
     m_btnSave->setIcon(makeHoverIcon(G_ICON_SAVE, G_ICON_SAVE_HOVER));
-    m_btnSave->setToolTip(tr("保存截图  (Ctrl+S)"));
     m_btnSave->setShortcut(QKeySequence::Save);
     m_btnSave->setObjectName("saveButton");
     m_btnSave->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
-    connect(m_btnSave, &QToolButton::clicked,
-            this, &ToolBar::saveRequested);
+    connect(m_btnSave, &QToolButton::clicked, this, &ToolBar::saveRequested);
     m_saveAction = addWidget(m_btnSave);
     m_saveAction->setVisible(false);
 
@@ -210,9 +205,7 @@ void ToolBar::setupActions()
     addWidget(dragHandle);
 
     // ---- 最小化 / 关闭 ----
-    m_actMinimize = new QAction(makeHoverIcon(G_ICON_MINIMIZE, G_ICON_MINIMIZE_HOVER),
-                                  tr("最小化"), this);
-    m_actMinimize->setToolTip(tr("最小化到系统托盘"));
+    m_actMinimize = new QAction(makeHoverIcon(G_ICON_MINIMIZE, G_ICON_MINIMIZE_HOVER), tr("最小化"), this);
     connect(m_actMinimize, &QAction::triggered,
             this, &ToolBar::minimizeRequested);
     auto* btnMin = new QToolButton(this);
@@ -221,11 +214,8 @@ void ToolBar::setupActions()
     btnMin->setObjectName("minimizeButton");
     addWidget(btnMin);
 
-    m_actClose = new QAction(makeHoverIcon(G_ICON_CLOSE, G_ICON_CLOSE_HOVER),
-                              tr("关闭"), this);
-    m_actClose->setToolTip(tr("退出 ScreenKiller"));
-    connect(m_actClose, &QAction::triggered,
-            this, &ToolBar::closeRequested);
+    m_actClose = new QAction(makeHoverIcon(G_ICON_CLOSE, G_ICON_CLOSE_HOVER), tr("关闭"), this);
+    connect(m_actClose, &QAction::triggered, this, &ToolBar::closeRequested);
     auto* btnClose = new QToolButton(this);
     btnClose->setDefaultAction(m_actClose);
     btnClose->setAutoRaise(true);
@@ -255,7 +245,7 @@ void ToolBar::setCaptureMode(int mode)
         if (action->data().toInt() == mode)
         {
             action->setChecked(true);
-            m_btnMode->setText(action->text() + QStringLiteral(" ▾"));
+            m_btnMode->setText(action->text());
             m_btnMode->setIcon(action->icon());
             return;
         }

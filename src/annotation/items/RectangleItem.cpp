@@ -29,9 +29,9 @@ QRectF RectangleItem::boundingRect() const
     return m_rect.adjusted(-margin, -margin, margin, margin);
 }
 
-void RectangleItem::paint(QPainter* painter,
-                          const QStyleOptionGraphicsItem* option,
-                          QWidget* widget)
+void RectangleItem::paintContent(QPainter* painter,
+                                 const QStyleOptionGraphicsItem* option,
+                                 QWidget* widget)
 {
     Q_UNUSED(option);
     Q_UNUSED(widget);
@@ -40,6 +40,16 @@ void RectangleItem::paint(QPainter* painter,
     painter->setPen(m_pen);
     painter->setBrush(m_brush);
     painter->drawRect(m_rect);
+}
+
+QRectF RectangleItem::resizeRect() const
+{
+    return m_rect;
+}
+
+void RectangleItem::setResizeRect(const QRectF& newRect)
+{
+    setRect(newRect);
 }
 
 } // namespace SK

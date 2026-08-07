@@ -206,7 +206,6 @@ void MainWindow::setupToolBar()
 void MainWindow::setupTrayIcon()
 {
     m_tray = new QSystemTrayIcon(QIcon(":/icons/app_alph.png"), this);
-    m_tray->setToolTip(tr("ScreenKiller"));
     m_tray->show();
 
     auto* menu = new QMenu(this);

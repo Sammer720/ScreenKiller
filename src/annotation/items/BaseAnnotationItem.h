@@ -16,6 +16,8 @@
 #include <QPen>
 #include <QBrush>
 #include <QColor>
+#include <QRectF>
+#include <QPointF>
 
 namespace SK {
 
@@ -30,11 +32,22 @@ enum class AnnotationType {
     Text           ///< 文本
 };
 
+/// @brief 缩放手柄位置枚举
+enum class ResizeHandle {
+    None,          ///< 无（未在手柄上）
+    TopLeft,       ///< 左上角
+    TopRight,      ///< 右上角
+    BottomLeft,    ///< 左下角
+    BottomRight    ///< 右下角
+};
+
 /**
  * @brief 标注图元抽象基类
  *
- * 子类只需实现 boundingRect() 与 paint()，
- * 通过 setPenColor/setPenWidth 等方法调整外观。
+ * 采用 NVI（Non-Virtual Interface）设计：
+ *   - 基类的 paint() 为 final，统一负责绘制内容并叠加选中态手柄；
+ *   - 子类只需实现 paintContent() / resizeRect() / setResizeRect() 三个纯虚函数；
+ *   - 通过 setPenColor/setPenWidth 等方法调整外观。
  */
 class BaseAnnotationItem : public QGraphicsItem
 {
@@ -76,9 +89,44 @@ public:
     /// @brief 获取画刷风格
     Qt::BrushStyle brushStyle() const { return m_brush.style(); }
 
+    /// @brief 最终 paint：调用 paintContent() + 选中时绘制手柄
+    void paint(QPainter* painter, const QStyleOptionGraphicsItem* option,
+               QWidget* widget = nullptr) final;
+
+    void mousePressEvent(QGraphicsSceneMouseEvent* event) override;
+    void mouseMoveEvent(QGraphicsSceneMouseEvent* event) override;
+    void mouseReleaseEvent(QGraphicsSceneMouseEvent* event) override;
+
+    QVariant itemChange(GraphicsItemChange change, const QVariant& value) override;
+
+    /// @brief 获取图元逻辑几何（不含画笔边距），用于手柄定位与缩放
+    virtual QRectF resizeRect() const = 0;
+
+    /// @brief 根据新的缩放矩形更新图元几何
+    /// @param newRect 新的逻辑几何（局部坐标系）
+    virtual void setResizeRect(const QRectF& newRect) = 0;
+
 protected:
+    /// @brief 子类实现：绘制图元内容（原有 paint() 逻辑搬入）
+    virtual void paintContent(QPainter* painter,
+                              const QStyleOptionGraphicsItem* option,
+                              QWidget* widget = nullptr) = 0;
+
+    /// @brief 最小缩放尺寸（像素），子类缩放实现中用于保护
+    static constexpr qreal G_MIN_RESIZE_SIZE = 5.0;
+
     QPen   m_pen   { Qt::red, 2 };   ///< 画笔（默认红色，线宽 2）
     QBrush m_brush { Qt::NoBrush };  ///< 画刷（默认无填充）
+
+private:
+    /// @brief 绘制四角缩放手柄
+    void drawHandles(QPainter* painter) const;
+    /// @brief 命中测试：返回指定位置（item 坐标系）所在的手柄
+    ResizeHandle handleAt(const QPointF& pos) const;
+
+    ResizeHandle m_activeHandle = ResizeHandle::None;  ///< 当前拖拽的手柄
+    QRectF m_startResizeRect;                          ///< 缩放起始的 resizeRect 快照
+    QPointF m_startPos;                                ///< 缩放起始鼠标位置（item 坐标系）
 };
 
 } // namespace SK
