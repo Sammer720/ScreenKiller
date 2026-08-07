@@ -179,6 +179,9 @@ set(APP_SOURCES
     src/ui/ToolBar.cpp
     src/ui/Style.cpp
 
+    # 子控件
+    src/sub_widget/ToolButton.cpp
+
     # 工具
     src/utils/ImageUtils.cpp
     src/utils/Logger.cpp
@@ -215,6 +218,9 @@ set(APP_HEADERS
 
     src/ui/ToolBar.h
     src/ui/Style.h
+
+    # 子控件
+    src/sub_widget/ToolButton.h
 
     src/utils/ImageUtils.h
     src/utils/Logger.h
