@@ -22,9 +22,11 @@ namespace SK {
 /**
  * @brief 标注页悬浮引导面板
  *
- * 半透明圆角卡片，包含两行内容：
+ * 半透明圆角卡片，内容布局：
  *   - 操作提示区：鼠标中键图标 + “拖动平移视图 / 滚动缩放视图”文字
- *   - 缩放比例区：当前视图缩放百分比（右下角对齐）
+ *   - 底部一行：左侧“点击隐藏”小字提示 + 右侧当前视图缩放百分比
+ *
+ * 整块面板左键点击可折叠为小浮动控件，再次点击展开。
  */
 class GuidePanel : public QWidget
 {
@@ -54,6 +56,7 @@ private:
     void toggleCollapsed();
 
     QLabel* m_contentLabel = nullptr;  ///< 操作提示内容
+    QLabel* m_hintLabel     = nullptr; ///< 左下角「点击隐藏」小字提示
     QLabel* m_zoomLabel     = nullptr; ///< 缩放比例显示
     bool    m_collapsed     = false;   ///< 是否折叠状态
 };

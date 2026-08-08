@@ -17,6 +17,7 @@
 #include <QPixmap>
 #include <QString>
 #include <QtGlobal>
+#include <QHBoxLayout>
 #include <QVBoxLayout>
 
 namespace SK {
@@ -30,7 +31,7 @@ constexpr int G_BG_A = 180;   // ~70% 不透明度
 /// \brief 圆角半径
 constexpr qreal G_CORNER_RADIUS = 10.0;
 /// \brief 面板内边距
-constexpr int G_PADDING = 12;
+constexpr int G_PADDING = 2;
 /// \brief 展开尺寸
 constexpr int G_EXPANDED_W = 160;
 constexpr int G_EXPANDED_H = 120;
@@ -43,6 +44,11 @@ const QString G_ZOOM_TEXT_INITIAL = QStringLiteral("缩放: 100%");
 /// \brief 缩放比例标签样式（深橙棕文字 + 中粗字重）
 const QString G_ZOOM_STYLE = QStringLiteral(
     "color: #8B5A2B; font-size: 12px; font-weight: 600;");
+/// \brief 左下角「点击隐藏」提示文本
+const QString G_HINT_TEXT = QStringLiteral("点击隐藏");
+/// \brief 「点击隐藏」小字样式（正文同色 + 半透明弱化，字号小于缩放标签）
+const QString G_HINT_STYLE = QStringLiteral(
+    "color: rgb(90, 62, 27); font-size: 12px;");
 /// \brief 操作提示富文本（鼠标中键图标 + 两行说明）
 const QString G_CONTENT_HTML = QStringLiteral(
     "<div style='color: #5A3E1B; font-size: 15px; line-height: 32px;'>"
@@ -77,18 +83,32 @@ GuidePanel::GuidePanel(QWidget* parent)
     m_contentLabel->setTextFormat(Qt::RichText);
     m_contentLabel->setText(G_CONTENT_HTML);
 
-    // 2. 初始化缩放比例标签：默认 100%，右下角对齐
+    // 2. 初始化「点击隐藏」提示标签：左下角小字，弱化显示
+    m_hintLabel = new QLabel(G_HINT_TEXT, this);
+    m_hintLabel->setObjectName(QStringLiteral("guideHint"));
+    m_hintLabel->setAlignment(Qt::AlignLeft);
+    m_hintLabel->setStyleSheet(G_HINT_STYLE);
+
+    // 3. 初始化缩放比例标签：默认 100%，右下角对齐
     m_zoomLabel = new QLabel(G_ZOOM_TEXT_INITIAL, this);
     m_zoomLabel->setObjectName(QStringLiteral("guideZoom"));
     m_zoomLabel->setAlignment(Qt::AlignRight);
     m_zoomLabel->setStyleSheet(G_ZOOM_STYLE);
 
-    // 3. 垂直布局：提示内容在上、缩放比例在下
+    // 4. 底部一行：左侧「点击隐藏」提示 + 右侧缩放比例（同一行，不增加面板行数）
+    auto* bottomLayout = new QHBoxLayout();
+    bottomLayout->setContentsMargins(0, 0, 0, 0);
+    bottomLayout->setSpacing(2);
+    bottomLayout->addWidget(m_hintLabel, 0, Qt::AlignLeft);
+    bottomLayout->addWidget(m_zoomLabel, 0, Qt::AlignRight);
+
+    // 5. 垂直布局：提示内容在上、底部一行在下
     auto* layout = new QVBoxLayout(this);
     layout->setContentsMargins(G_PADDING, G_PADDING, G_PADDING, G_PADDING);
     layout->setSpacing(4);
     layout->addWidget(m_contentLabel);
-    layout->addWidget(m_zoomLabel);
+    layout->addStretch();
+    layout->addLayout(bottomLayout);
 
     setFixedSize(G_EXPANDED_W, G_EXPANDED_H);
 }
@@ -119,6 +139,7 @@ void GuidePanel::toggleCollapsed()
     {
         // 折叠：隐藏全部内容，缩小为小浮动控件
         m_contentLabel->setVisible(false);
+        m_hintLabel->setVisible(false);
         m_zoomLabel->setVisible(false);
         setFixedSize(G_COLLAPSED_SIZE, G_COLLAPSED_SIZE);
     }
@@ -126,6 +147,7 @@ void GuidePanel::toggleCollapsed()
     {
         // 展开：恢复完整面板尺寸与内容
         m_contentLabel->setVisible(true);
+        m_hintLabel->setVisible(true);
         m_zoomLabel->setVisible(true);
         setFixedSize(G_EXPANDED_W, G_EXPANDED_H);
     }

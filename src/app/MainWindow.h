@@ -90,6 +90,8 @@ private Q_SLOTS:
     void onQuitRequested();
     /// @brief 保存截图到文件
     void onSaveRequested();
+    /// @brief 标注视图右键复制图片完成，触发托盘通知
+    void onViewImageCopied();
 
 private:
     /// @brief 构造 UI 控件与布局
@@ -115,6 +117,10 @@ private:
     /// @param suffix 文件后缀（小写）
     /// @return Qt 支持的格式字符串，如 "PNG" / "JPG" / "BMP"
     QByteArray chooseImageFormat(const QString& suffix) const;
+
+    /// @brief 显示「图片已复制到剪贴板」托盘气泡通知（截屏完成与标注页右键复制共用）
+    /// @param title 通知标题
+    void showImageCopiedNotice(const QString& title);
 
     ToolBar*            m_toolBar        = nullptr;  ///< 顶部工具栏
     QStackedWidget*     m_centralStack   = nullptr;  ///< 中心页栈（占位/标注视口切换）

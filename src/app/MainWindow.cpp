@@ -198,6 +198,9 @@ void MainWindow::setupUi()
     // 滚轮缩放时实时更新引导面板的缩放比例显示
     connect(m_view, &AnnotationView::zoomChanged,
             m_guidePanel, &GuidePanel::setZoomScale);
+    // 标注视图右键复制成品图成功后，触发统一的托盘气泡通知
+    connect(m_view, &AnnotationView::imageCopied,
+            this, &MainWindow::onViewImageCopied);
 
     m_centralStack->setCurrentIndex(G_PAGE_PLACEHOLDER);
 }
@@ -432,15 +435,8 @@ void MainWindow::onCaptureFinished(const QImage& image)
     // 截图成功后自动复制到剪贴板
     QGuiApplication::clipboard()->setImage(image, QClipboard::Clipboard);
 
-    // 用系统托盘气泡提示用户
-    if (m_tray != nullptr)
-    {
-        m_tray->showMessage(
-            tr("截图完成"),
-            tr("图片已复制到剪贴板！"),
-            QSystemTrayIcon::Information,
-            G_TRAY_NOTICE_DURATION_MS);
-    }
+    // 用系统托盘气泡提示用户（与标注页右键复制的通知共用同一实现）
+    showImageCopiedNotice(tr("截图完成"));
 
     // 显示并激活主窗口
     showNormal();
@@ -539,6 +535,27 @@ void MainWindow::onSaveRequested()
         return;
     }
     SK_LOG_INFO() << "截图已保存至:" << filePath;
+}
+
+void MainWindow::onViewImageCopied()
+{
+    // 标注页右键复制成品图成功：复用统一的托盘气泡通知
+    showImageCopiedNotice(tr("复制成功"));
+}
+
+void MainWindow::showImageCopiedNotice(const QString& title)
+{
+    // 托盘不可用时静默跳过（如系统托盘未初始化）
+    if (m_tray == nullptr)
+    {
+        return;
+    }
+    // 使用应用 logo 作为通知气泡图标（与窗口/托盘图标同源，走 QIcon 重载而非系统枚举图标）
+    m_tray->showMessage(
+        title,
+        tr("图片已复制到剪贴板！"),
+        QIcon(QStringLiteral(":/icons/app_alph.png")),
+        G_TRAY_NOTICE_DURATION_MS);
 }
 
 QByteArray MainWindow::chooseImageFormat(const QString& suffix) const
