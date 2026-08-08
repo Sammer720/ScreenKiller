@@ -40,6 +40,7 @@
 #include "annotation/AnnotationView.h"
 #include "annotation/AnnotationScene.h"
 #include "GlobalHotkey.h"
+#include "ui/GuidePanel.h"
 #include "ui/ToolBar.h"
 #include "utils/Logger.h"
 #include "utils/MessageBox.h"
@@ -79,6 +80,8 @@ constexpr int G_RESIZE_BORDER_WIDTH = 6;
 const QString G_CONFIG_KEY_GEOMETRY = QStringLiteral("mainWindow/geometry");
 /// \brief 截屏模式在配置文件中的键名
 const QString G_CONFIG_KEY_CAPTURE_MODE = QStringLiteral("mainWindow/captureMode");
+/// \brief 引导面板距标注视口左上角的边距（像素），需足够避开视口边框和内边距
+constexpr int G_GUIDE_PANEL_MARGIN = 24;
 }
 
 MainWindow::MainWindow(QWidget* parent)
@@ -135,9 +138,9 @@ void MainWindow::setupUi()
     m_placeholder->setTextFormat(Qt::RichText);
     m_placeholder->setText(tr(
         "<div style='text-align: center;'>"
-        "<div style='font-size: 20px; font-weight: 700; margin-bottom: 24px; "
+        "<div style='font-size: 25px; font-weight: 700; margin-bottom: 24px; "
         "color: #4A3F6E; letter-spacing: 1px;'>ScreenKiller</div>"
-        "<table style='margin: 0 auto; font-size: 14px; line-height: 2.4; "
+        "<table style='margin: 0 auto; font-size: 19px; line-height: 2.4; "
         "border-collapse: collapse;'>"
         "<tr>"
         "<td style='text-align: right; padding-right: 40px; "
@@ -182,6 +185,19 @@ void MainWindow::setupUi()
     m_view  = new AnnotationView(m_scene, this);
     m_view->setObjectName("annotationView");
     m_centralStack->addWidget(m_view);
+
+    // 引导面板：悬浮在中央栈左上角，作为 m_centralStack 子控件叠加显示
+    // 父控件不能是 m_view（QGraphicsView）：其 viewport 子控件会遮挡其他直接子控件，
+    // 导致面板陷在视口之下无法看到。
+    m_guidePanel = new GuidePanel(m_centralStack);
+    m_guidePanel->move(G_GUIDE_PANEL_MARGIN, G_GUIDE_PANEL_MARGIN);
+
+    // 初始处于占位页，引导面板保持隐藏；截屏完成切换到标注页后由 onCaptureFinished 显示
+    m_guidePanel->hide();
+
+    // 滚轮缩放时实时更新引导面板的缩放比例显示
+    connect(m_view, &AnnotationView::zoomChanged,
+            m_guidePanel, &GuidePanel::setZoomScale);
 
     m_centralStack->setCurrentIndex(G_PAGE_PLACEHOLDER);
 }
@@ -431,8 +447,21 @@ void MainWindow::onCaptureFinished(const QImage& image)
     raise();
     activateWindow();
 
-    // 等待视口布局完成后自适应显示
-    QTimer::singleShot(0, m_view, &AnnotationView::fitToView);
+    // 等待视口布局完成后自适应显示，并同步引导面板的初始缩放比例
+    // 注意：fitToView 是异步执行的，缩放比例必须在 fitToView 之后读取，
+    // 否则读到的是视图上一步的旧缩放值（通常为 1.0）
+    QTimer::singleShot(0, this, [this]()
+    {
+        m_view->fitToView();
+        if (m_guidePanel != nullptr)
+        {
+            // 切换到标注页后显式置顶并显示引导面板，避免被中央栈其他页面遮挡
+            m_guidePanel->raise();
+            m_guidePanel->show();
+            const qreal currentScale = m_view->transform().m11();
+            m_guidePanel->setZoomScale(currentScale);
+        }
+    });
 }
 
 void MainWindow::onCaptureCancelled()

@@ -24,8 +24,8 @@ constexpr int G_DEFAULT_MODE_INDEX = 0;
 /// \brief 工具栏图标尺寸
 constexpr int G_ICON_SIZE = 20;
 /// \brief 模式按钮图标与文本的间距（像素，经 ToolButton 内部布局生效）
-constexpr int G_MODE_ICON_TEXT_SPACING = 8;
-constexpr int G_NORMAL_ICON_TEXT_SPACING = 3;
+constexpr int G_MODE_ICON_TEXT_SPACING = 12;
+constexpr int G_NORMAL_ICON_TEXT_SPACING = 4;
 
 /// \brief 截屏按钮图标（正常 / 悬停）
 const QString G_ICON_CUT       = QStringLiteral(":/icons/cut.png");

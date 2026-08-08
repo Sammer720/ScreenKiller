@@ -63,6 +63,8 @@ void AnnotationView::wheelEvent(QWheelEvent* event)
                          ? G_ZOOM_FACTOR
                          : 1.0 / G_ZOOM_FACTOR;
     scale(factor, factor);
+    // 通知外部监听者缩放比例已变化（如引导面板的缩放百分比显示）
+    Q_EMIT zoomChanged(transform().m11());
     event->accept();
 }
 

@@ -176,6 +176,7 @@ set(APP_SOURCES
     src/platform/WinApi.cpp
 
     # UI 组件
+    src/ui/GuidePanel.cpp
     src/ui/ToolBar.cpp
     src/ui/Style.cpp
 
@@ -216,6 +217,7 @@ set(APP_HEADERS
     src/platform/KeyboardHook.h
     src/platform/WinApi.h
 
+    src/ui/GuidePanel.h
     src/ui/ToolBar.h
     src/ui/Style.h
 

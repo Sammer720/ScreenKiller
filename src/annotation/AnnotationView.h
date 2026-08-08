@@ -37,6 +37,11 @@ public:
      */
     void fitToView();
 
+Q_SIGNALS:
+    /// @brief 视图缩放比例变化
+    /// @param scale 当前缩放因子（1.0 = 100%）
+    void zoomChanged(qreal scale);
+
 protected:
     /**
      * @brief 滚轮事件：以光标为中心缩放视图

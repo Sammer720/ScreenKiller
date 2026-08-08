@@ -24,5 +24,11 @@
         <file>icons/close_hover.png</file>
         <file>icons/drop_down.png</file>
         <file>icons/drop_down_clicked.png</file>
+        <file>icons/mouse_left.png</file>
+        <file>icons/mouse_mid.png</file>
+        <file>icons/mouse_right.png</file>
+        <file>icons/help.png</file>
+        <file>fonts/LXGWWenKaiLite-Regular.ttf</file>
+        <file>fonts/FiraCode-Regular.ttf</file>
     </qresource>
 </RCC>

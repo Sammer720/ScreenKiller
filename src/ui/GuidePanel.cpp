@@ -1,0 +1,161 @@
+/**
+ * \file GuidePanel.cpp
+ * \brief 标注页悬浮引导面板实现
+ *
+ * 实现要点：
+ *   1. 面板背景不依赖 QSS，直接在 paintEvent 中自绘半透明圆角矩形（WA_TranslucentBackground）。
+ *   2. 内容区用 QLabel 富文本展示“鼠标中键图标 + 操作说明”，缩放比例独立一个 QLabel。
+ *   3. 左键点击整块面板在 折叠 / 展开 两种形态间切换，折叠时隐藏全部内容并收缩为小方块。
+ */
+#include "GuidePanel.h"
+
+#include <QColor>
+#include <QLabel>
+#include <QMouseEvent>
+#include <QPainter>
+#include <QPainterPath>
+#include <QPixmap>
+#include <QString>
+#include <QtGlobal>
+#include <QVBoxLayout>
+
+namespace SK {
+
+namespace {
+/// \brief 面板背景色（#FFE4B5 柔和黄 + 70% 不透明度）
+constexpr int G_BG_R = 255;   // #FFE4B5
+constexpr int G_BG_G = 228;
+constexpr int G_BG_B = 181;
+constexpr int G_BG_A = 180;   // ~70% 不透明度
+/// \brief 圆角半径
+constexpr qreal G_CORNER_RADIUS = 10.0;
+/// \brief 面板内边距
+constexpr int G_PADDING = 12;
+/// \brief 展开尺寸
+constexpr int G_EXPANDED_W = 160;
+constexpr int G_EXPANDED_H = 120;
+/// \brief 折叠尺寸
+constexpr int G_COLLAPSED_SIZE = 40;
+/// \brief 折叠状态下图标占面板边长的比例（缩放到 70% 居中显示）
+constexpr qreal G_COLLAPSED_ICON_RATIO = 0.7;
+/// \brief 初始缩放显示文本
+const QString G_ZOOM_TEXT_INITIAL = QStringLiteral("缩放: 100%");
+/// \brief 缩放比例标签样式（深橙棕文字 + 中粗字重）
+const QString G_ZOOM_STYLE = QStringLiteral(
+    "color: #8B5A2B; font-size: 12px; font-weight: 600;");
+/// \brief 操作提示富文本（鼠标中键图标 + 两行说明）
+const QString G_CONTENT_HTML = QStringLiteral(
+    "<div style='color: #5A3E1B; font-size: 15px; line-height: 32px;'>"
+    "<table border='0' cellspacing='0' cellpadding='0' style='vertical-align: middle;'>"
+    "<tr>"
+    "<td style='padding-right: 8px; vertical-align: middle; text-align: left;'>"
+    "<img src=':/icons/mouse_mid.png' width='32' height='32' style='vertical-align: middle;'/>"
+    "</td>"
+    "<td style='padding-right: 15px; vertical-align: middle; text-align: left; white-space: nowrap;'>+ 拖动</td>"
+    "<td style='vertical-align: middle; text-align: left; white-space: nowrap;'>平移</td>"
+    "</tr>"
+    "<tr>"
+    "<td style='padding-right: 8px; vertical-align: middle; text-align: left;'>"
+    "<img src=':/icons/mouse_mid.png' width='32' height='32' style='vertical-align: middle;'/>"
+    "</td>"
+    "<td style='padding-right: 15px; vertical-align: middle; text-align: left; white-space: nowrap;'>+ 滚动</td>"
+    "<td style='vertical-align: middle; text-align: left; white-space: nowrap;'>缩放</td>"
+    "</tr>"
+    "</table>"
+    "</div>");
+}
+
+GuidePanel::GuidePanel(QWidget* parent)
+    : QWidget(parent)
+{
+    setAttribute(Qt::WA_TranslucentBackground, true);
+    setObjectName(QStringLiteral("guidePanel"));
+
+    // 1. 初始化操作提示标签：富文本展示鼠标中键图标 + 文字
+    m_contentLabel = new QLabel(this);
+    m_contentLabel->setObjectName(QStringLiteral("guideContent"));
+    m_contentLabel->setTextFormat(Qt::RichText);
+    m_contentLabel->setText(G_CONTENT_HTML);
+
+    // 2. 初始化缩放比例标签：默认 100%，右下角对齐
+    m_zoomLabel = new QLabel(G_ZOOM_TEXT_INITIAL, this);
+    m_zoomLabel->setObjectName(QStringLiteral("guideZoom"));
+    m_zoomLabel->setAlignment(Qt::AlignRight);
+    m_zoomLabel->setStyleSheet(G_ZOOM_STYLE);
+
+    // 3. 垂直布局：提示内容在上、缩放比例在下
+    auto* layout = new QVBoxLayout(this);
+    layout->setContentsMargins(G_PADDING, G_PADDING, G_PADDING, G_PADDING);
+    layout->setSpacing(4);
+    layout->addWidget(m_contentLabel);
+    layout->addWidget(m_zoomLabel);
+
+    setFixedSize(G_EXPANDED_W, G_EXPANDED_H);
+}
+
+void GuidePanel::setZoomScale(qreal scale)
+{
+    // 缩放因子转百分比并四舍五入到整数，例如 1.25 显示为 "缩放: 125%"
+    const int percent = qRound(scale * 100.0);
+    m_zoomLabel->setText(QStringLiteral("缩放: %1%").arg(percent));
+}
+
+void GuidePanel::mousePressEvent(QMouseEvent* event)
+{
+    // 仅响应左键：整块面板作为开关按钮，其余按键交回基类默认处理
+    if (event->button() == Qt::LeftButton)
+    {
+        toggleCollapsed();
+        event->accept();
+        return;
+    }
+    QWidget::mousePressEvent(event);
+}
+
+void GuidePanel::toggleCollapsed()
+{
+    m_collapsed = !m_collapsed;
+    if (m_collapsed)
+    {
+        // 折叠：隐藏全部内容，缩小为小浮动控件
+        m_contentLabel->setVisible(false);
+        m_zoomLabel->setVisible(false);
+        setFixedSize(G_COLLAPSED_SIZE, G_COLLAPSED_SIZE);
+    }
+    else
+    {
+        // 展开：恢复完整面板尺寸与内容
+        m_contentLabel->setVisible(true);
+        m_zoomLabel->setVisible(true);
+        setFixedSize(G_EXPANDED_W, G_EXPANDED_H);
+    }
+}
+
+void GuidePanel::paintEvent(QPaintEvent* event)
+{
+    Q_UNUSED(event);
+    QPainter painter(this);
+    painter.setRenderHint(QPainter::Antialiasing, true);
+
+    // 自绘半透明圆角背景：填充色从具名常量组合，保证抗锯齿平滑
+    QPainterPath path;
+    path.addRoundedRect(rect(), G_CORNER_RADIUS, G_CORNER_RADIUS);
+    painter.fillPath(path, QColor(G_BG_R, G_BG_G, G_BG_B, G_BG_A));
+
+    // 折叠状态：绘制 help.png 图标居中，避免收缩后只剩一个空方块
+    if (m_collapsed)
+    {
+        QPixmap helpIcon(QStringLiteral(":/icons/help.png"));
+        if (!helpIcon.isNull())
+        {
+            // 图标按折叠尺寸的 70% 缩放，居中绘制
+            int iconSize = static_cast<int>(G_COLLAPSED_SIZE * G_COLLAPSED_ICON_RATIO);
+            int iconX    = (width() - iconSize) / 2;
+            int iconY    = (height() - iconSize) / 2;
+            painter.drawPixmap(iconX, iconY, helpIcon.scaled(iconSize, iconSize,
+                                Qt::KeepAspectRatio, Qt::SmoothTransformation));
+        }
+    }
+}
+
+} // namespace SK

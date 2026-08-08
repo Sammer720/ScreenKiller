@@ -43,6 +43,7 @@ namespace SK {
 
 class ToolBar;
 class AnnotationScene;
+class GuidePanel;
 
 class MainWindow : public QMainWindow
 {
@@ -124,6 +125,7 @@ private:
     QSystemTrayIcon*    m_tray           = nullptr;  ///< 系统托盘图标
     CaptureMode         m_mode           = CaptureMode::Region;  ///< 当前截屏模式
     CaptureEngine*      m_capture        = nullptr;  ///< 截屏引擎
+    GuidePanel*         m_guidePanel     = nullptr;  ///< 标注页悬浮引导面板
 
     static constexpr int kHotKeyId = 0x0001;   ///< Ctrl+Alt+A 的快捷键 ID
 };

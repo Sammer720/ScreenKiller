@@ -21,14 +21,32 @@
 
 /* ---------- 全局 ---------- */
 * {
-    font-family: "Microsoft YaHei UI", "Segoe UI Variable Text", "Segoe UI", sans-serif;
-    font-size: 13px;
+    /* 字体栈：Fira Code 优先匹配英文/数字/代码字符（支持连写），
+     * 中文字符在 Fira Code 中缺失时回退到霞鹜文楷 Lite，
+     * 再兜底微软雅黑 / Segoe UI。 */
+    font-family: "Fira Code", "LXGW WenKai Lite", "Microsoft YaHei UI", "Segoe UI Variable Text", "Segoe UI", sans-serif;
+    font-size: 18px;
     outline: none;
 }
 
 QWidget {
     background: #FBF7EF;
     color: #3A3357;
+}
+
+/* 引导面板：子控件透明背景，让面板的半透明自绘背景透出
+ * 注意：全局 QWidget 规则会被 QLabel 继承，若不覆盖则子控件
+ * 的不透明背景色会盖住 GuidePanel 的 paintEvent 半透明圆角。 */
+QWidget#guidePanel,
+QWidget#guidePanel QLabel {
+    background: transparent;
+}
+
+/* 消息框：弹窗字号 14px，避免继承全局 18px 导致弹窗文字偏大
+ * 仅限定 QMessageBox 内部的标签与按钮，不影响工具栏等普通按钮。 */
+QMessageBox QLabel,
+QMessageBox QPushButton {
+    font-size: 14px;
 }
 
 QWidget:disabled {
@@ -218,11 +236,13 @@ QGraphicsView#annotationView {
     border: 1px solid #D9CFC1;
     border-radius: 8px;
     padding: 4px;
+    /* 确保子控件（GuidePanel）不被视口边框和内边距遮挡 */
+    /* padding 仅影响内部布局，叠加的浮动面板需在 move 时避开此区域 */
 }
 
 QLabel#placeholderLabel {
     color: #6B5B95;
-    font-size: 16px;
+    font-size: 21px;
     font-weight: 500;
     background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
         stop:0 #FBF7EF,
