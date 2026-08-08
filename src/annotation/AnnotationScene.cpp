@@ -264,15 +264,13 @@ void AnnotationScene::beginCreateItem(Tool t, const QPointF& pos)
         break;
     case Tool::Text:
     {
-        // 文字直接在点击点创建一个空 TextItem，触发输入框
         auto* textItem = new TextItem();
-        textItem->setPos(pos);
-        // 应用当前字号与字体族，修复字号/字体断链
         QFont textFont(m_fontFamily, qRound(m_fontSize));
         textItem->setFont(textFont);
-        textItem->setText(QStringLiteral("双击编辑"));
-        pushAddCommand(textItem);
-        // 模拟双击 -> 弹出输入框由 TextItem 自身处理
+        textItem->setPos(pos);
+        addItem(textItem);
+        // 不在这里入栈：等视图编辑器提交后由 commitTextItem 入栈
+        Q_EMIT textEditRequested(textItem);
         return;
     }
     default:
@@ -366,6 +364,32 @@ void AnnotationScene::finalizeCreateItem()
 void AnnotationScene::pushAddCommand(SK::BaseAnnotationItem* item)
 {
     m_undoStack->push(std::make_unique<AddItemCommand>(this, item));
+}
+
+void AnnotationScene::commitTextItem(SK::TextItem* item, const QString& text)
+{
+    if (item == nullptr)
+    {
+        return;
+    }
+    const QString trimmed = text.trimmed();
+    if (trimmed.isEmpty())
+    {
+        discardTextItem(item);
+        return;
+    }
+    item->setText(trimmed);
+    pushAddCommand(item);
+}
+
+void AnnotationScene::discardTextItem(SK::TextItem* item)
+{
+    if (item == nullptr)
+    {
+        return;
+    }
+    removeItem(item);
+    delete item;
 }
 
 } // namespace SK

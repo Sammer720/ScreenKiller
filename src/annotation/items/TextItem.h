@@ -2,8 +2,8 @@
  * \file TextItem.h
  * \brief 文字标注图元
  *
- * 点击画布弹出输入框（QInputDialog），确认后转为画布文本对象。
- * 双击可再次进入编辑模式。
+ * 点击画布后由 AnnotationView 在点击位置弹出内联编辑器，
+ * 确认后转为画布文本对象。
  */
 #pragma once
 
@@ -51,10 +51,6 @@ public:
     void setFont(const QFont& f) { m_font = f; prepareGeometryChange(); update(); }
     /// @brief 获取字体
     QFont font() const { return m_font; }
-
-protected:
-    /// @brief 双击进入文字编辑对话框
-    void mouseDoubleClickEvent(QGraphicsSceneMouseEvent* event) override;
 
 private:
     QString m_text;   ///< 文字内容

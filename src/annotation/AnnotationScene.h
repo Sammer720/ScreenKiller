@@ -25,6 +25,7 @@ namespace SK {
 
 // 前向声明（与 items/BaseAnnotationItem.h 中的 SK::BaseAnnotationItem 对齐）
 class BaseAnnotationItem;
+class TextItem;
 
 /**
  * @brief 标注工具类型枚举
@@ -179,6 +180,19 @@ public:
      */
     void deleteSelected();
 
+    /**
+     * @brief 提交文字图元：非空则设文字并入撤销栈，空则删除图元
+     * @param item 待提交的文字图元
+     * @param text 输入的原始文字内容
+     */
+    void commitTextItem(SK::TextItem* item, const QString& text);
+
+    /**
+     * @brief 丢弃文字图元（从场景移除并删除）
+     * @param item 待丢弃的文字图元
+     */
+    void discardTextItem(SK::TextItem* item);
+
 Q_SIGNALS:
     /**
      * @brief 历史记录变化信号
@@ -186,6 +200,12 @@ Q_SIGNALS:
      * @param canRedo 当前是否可重做
      */
     void historyChanged(bool canUndo, bool canRedo);
+
+    /**
+     * @brief 文字编辑请求信号（文字工具点击后发射，由视图弹出内联编辑器）
+     * @param item 待编辑的空文字图元
+     */
+    void textEditRequested(SK::TextItem* item);
 
 protected:
     /**
