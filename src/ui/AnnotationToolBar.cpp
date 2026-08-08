@@ -1,21 +1,35 @@
 /**
  * \file AnnotationToolBar.cpp
- * \brief AnnotationToolBar 实现：工具按钮组、动态属性面板与信号发射
+ * \brief AnnotationToolBar 实现：手风琴工具按钮、参数区与信号发射
+ *
+ * 实现要点：
+ *   1. 背景不依赖 QSS，直接在 paintEvent 自绘半透明圆角暖色矩形
+ *      （WA_TranslucentBackground + QPainterPath），与 GuidePanel 同设计语言。
+ *   2. 工具按钮用 SK::ToolButton（纯文本 TextOnly 模式回退基类自绘），
+ *      emoji 占位文本 + Segoe UI Emoji 字体族，待图标资源替换。
+ *   3. 手风琴参数区：每个按钮正下方内联一个参数 QWidget，初始 hidden，
+ *      setCurrentTool 时仅展开当前工具的参数区，其余收起。
+ *   4. 构造期不发射任何信号：色板/粗细/字号/字体均先设置默认值再 connect。
  */
 #include "AnnotationToolBar.h"
 
 #include "annotation/AnnotationConstants.h"
+#include "sub_widget/ToolButton.h"
 
 #include <QButtonGroup>
-#include <QStackedWidget>
-#include <QToolButton>
 #include <QCheckBox>
-#include <QSpinBox>
+#include <QFont>
 #include <QFontComboBox>
-#include <QVBoxLayout>
+#include <QHash>
 #include <QHBoxLayout>
 #include <QLabel>
-#include <QFont>
+#include <QPainter>
+#include <QPainterPath>
+#include <QSignalBlocker>
+#include <QSpinBox>
+#include <QToolButton>
+#include <QtGlobal>
+#include <QVBoxLayout>
 
 namespace SK {
 
@@ -33,7 +47,9 @@ constexpr int G_TOOL_EMOJI_POINT_SIZE = 14;
 /// 色板色块按钮尺寸（像素）
 constexpr int G_COLOR_SWATCH_SIZE = 20;
 /// 粗细档位按钮尺寸（像素）
-constexpr int G_WIDTH_SWATCH_SIZE = 28;
+constexpr int G_WIDTH_SWATCH_SIZE = 26;
+/// 色块/粗细按钮间距（像素）
+constexpr int G_SWATCH_SPACING = 4;
 /// 粗细圆点字号下限（像素）
 constexpr int G_MIN_DOT_FONT_SIZE = 6;
 /// 粗细圆点字号上限（像素）
@@ -41,41 +57,55 @@ constexpr int G_MAX_DOT_FONT_SIZE = 24;
 /// 粗细圆点字号放大系数（档位值 × 系数 = 圆点字号）
 constexpr qreal G_DOT_FONT_SCALE = 0.6;
 
+// ============================ 背景色（与 GuidePanel 同设计语言） ============================
+// 与 GuidePanel.cpp 的 G_BG_* 保持一致，保证两个悬浮面板视觉风格统一
+constexpr int G_BG_R = 255;   // #FFE4B5 柔和暖黄
+constexpr int G_BG_G = 228;
+constexpr int G_BG_B = 181;
+constexpr int G_BG_A = 180;   // ~70% 不透明度
+/// 圆角半径（像素）
+constexpr qreal G_CORNER_RADIUS = 10.0;
+
 // ============================ 工具按钮 emoji 占位 ============================
 // TODO: 替换为图标资源，暂用 emoji 占位
-/// 选择按钮占位文本
-const QString G_EMOJI_SELECT      = QStringLiteral("🖱️");
-/// 画笔按钮占位文本
-const QString G_EMOJI_PEN         = QStringLiteral("✏️");
-/// 荧光笔按钮占位文本
-const QString G_EMOJI_HIGHLIGHTER = QStringLiteral("🖍️");
-/// 直线按钮占位文本
-const QString G_EMOJI_LINE        = QStringLiteral("📏");
-/// 箭头按钮占位文本
-const QString G_EMOJI_ARROW       = QStringLiteral("➡️");
-/// 矩形按钮占位文本
-const QString G_EMOJI_RECTANGLE   = QStringLiteral("🟦");
-/// 椭圆按钮占位文本
-const QString G_EMOJI_ELLIPSE     = QStringLiteral("⭕");
-/// 文字按钮占位文本
-const QString G_EMOJI_TEXT        = QStringLiteral("🅰️");
-/// 马赛克按钮占位文本
-const QString G_EMOJI_MOSAIC      = QStringLiteral("🔲");
+const QString G_EMOJI_PEN         = QStringLiteral("✏️");   ///< 画笔按钮占位文本
+const QString G_EMOJI_HIGHLIGHTER = QStringLiteral("🖍️");   ///< 荧光笔按钮占位文本
+const QString G_EMOJI_LINE        = QStringLiteral("📏");   ///< 直线按钮占位文本
+const QString G_EMOJI_ARROW       = QStringLiteral("➡️");   ///< 箭头按钮占位文本
+const QString G_EMOJI_RECTANGLE   = QStringLiteral("🟦");   ///< 矩形按钮占位文本
+const QString G_EMOJI_ELLIPSE     = QStringLiteral("⭕");   ///< 椭圆按钮占位文本
+const QString G_EMOJI_TEXT        = QStringLiteral("🅰️");   ///< 文字按钮占位文本
+const QString G_EMOJI_MOSAIC      = QStringLiteral("🔲");   ///< 马赛克按钮占位文本
 
 // ============================ 粗细档位预设 ============================
 // 档位取值已按各工具边界常量（G_MIN/MAX_*_WIDTH）预置于合法范围内，点击无需再 clamp
-/// 画笔/几何（矩形/椭圆/直线/箭头）档位（像素）
-const QVector<qreal> G_PEN_WIDTH_STEPS       = { 2.0, 4.0, 8.0, 12.0, 20.0 };
-/// 荧光笔档位（像素）
-const QVector<qreal> G_HIGHLIGHT_WIDTH_STEPS = { 10.0, 15.0, 20.0, 30.0, 40.0 };
-/// 马赛克档位（像素）
-const QVector<qreal> G_MOSAIC_WIDTH_STEPS    = { 15.0, 25.0, 40.0, 50.0, 60.0 };
+const QVector<qreal> G_PEN_WIDTH_STEPS       = { 2.0, 4.0, 8.0, 12.0, 20.0 };     ///< 画笔/几何（矩形/椭圆/直线/箭头）
+const QVector<qreal> G_HIGHLIGHT_WIDTH_STEPS = { 10.0, 15.0, 20.0, 30.0, 40.0 }; ///< 荧光笔
+const QVector<qreal> G_MOSAIC_WIDTH_STEPS    = { 15.0, 25.0, 40.0, 50.0, 60.0 }; ///< 马赛克
 
 // ============================ 文字属性默认值 ============================
-/// 默认字号（pt，与 AnnotationScene 默认一致）
-constexpr qreal G_DEFAULT_FONT_SIZE = 12.0;
-/// 默认字体族（与 AnnotationScene 默认一致）
-const QString G_DEFAULT_FONT_FAMILY = QStringLiteral("微软雅黑");
+constexpr qreal G_DEFAULT_FONT_SIZE = 12.0;   ///< 默认字号（pt，与 AnnotationScene 默认一致）
+const QString G_DEFAULT_FONT_FAMILY = QStringLiteral("微软雅黑");  ///< 默认字体族
+
+// ============================ 工具按钮装配表 ============================
+/// @brief 工具按钮装配条目：emoji 占位文本 + 对应工具枚举
+struct ToolButtonEntry
+{
+    QString emoji;   ///< emoji 占位文本
+    SK::Tool tool;   ///< 工具类型
+};
+
+/// @brief 手风琴工具按钮顺序（按任务指定：无 Select 工具）
+const QVector<ToolButtonEntry> G_TOOL_BUTTON_ENTRIES = {
+    { G_EMOJI_PEN,         SK::Tool::Pen },
+    { G_EMOJI_HIGHLIGHTER, SK::Tool::Highlighter },
+    { G_EMOJI_LINE,        SK::Tool::Line },
+    { G_EMOJI_ARROW,       SK::Tool::Arrow },
+    { G_EMOJI_RECTANGLE,   SK::Tool::Rectangle },
+    { G_EMOJI_ELLIPSE,     SK::Tool::Ellipse },
+    { G_EMOJI_TEXT,        SK::Tool::Text },
+    { G_EMOJI_MOSAIC,      SK::Tool::Mosaic },
+};
 
 } // namespace
 
@@ -88,13 +118,15 @@ AnnotationToolBar::AnnotationToolBar(QWidget* parent)
 void AnnotationToolBar::setupUi()
 {
     setObjectName(QStringLiteral("annotationToolBar"));
+    // 半透明暖色圆角背景由 paintEvent 自绘，必须启用透明背景属性
+    setAttribute(Qt::WA_TranslucentBackground, true);
+    // 固定宽度与 MainWindow 定位共享同一常量，避免构造/定位宽度不一致
     setFixedWidth(SK::G_ANN_TOOLBAR_WIDTH);
+    // 高度不固定：手风琴参数区随展开变化，由布局 sizeHint 与外层 setGeometry 共同决定
+
+    // 仅定义子控件交互样式（按钮 hover/checked、色块/粗细块边框）；
+    // 根对象背景不在此定义，避免破坏 paintEvent 自绘的圆角
     setStyleSheet(QStringLiteral(R"(
-#annotationToolBar {
-    background-color: rgba(255, 255, 255, 0.92);
-    border: 1px solid rgba(0, 0, 0, 0.12);
-    border-radius: 10px;
-}
 #annotationToolBar QToolButton {
     background: transparent;
     border: none;
@@ -137,34 +169,38 @@ void AnnotationToolBar::setupUi()
     rootLayout->setContentsMargins(G_PANEL_MARGIN, G_PANEL_MARGIN, G_PANEL_MARGIN, G_PANEL_MARGIN);
     rootLayout->setSpacing(G_PANEL_SPACING);
 
-    // ---- 上部工具按钮列（竖排） ----
-    rootLayout->addWidget(createToolButton(G_EMOJI_SELECT,      tr("选择/移动"), Tool::Select));
-    rootLayout->addWidget(createToolButton(G_EMOJI_PEN,         tr("画笔"),   Tool::Pen));
-    rootLayout->addWidget(createToolButton(G_EMOJI_HIGHLIGHTER, tr("荧光笔"), Tool::Highlighter));
-    rootLayout->addWidget(createToolButton(G_EMOJI_LINE,        tr("直线"),   Tool::Line));
-    rootLayout->addWidget(createToolButton(G_EMOJI_ARROW,       tr("箭头"),   Tool::Arrow));
-    rootLayout->addWidget(createToolButton(G_EMOJI_RECTANGLE,   tr("矩形"),   Tool::Rectangle));
-    rootLayout->addWidget(createToolButton(G_EMOJI_ELLIPSE,     tr("椭圆"),   Tool::Ellipse));
-    rootLayout->addWidget(createToolButton(G_EMOJI_TEXT,        tr("文字"),   Tool::Text));
-    rootLayout->addWidget(createToolButton(G_EMOJI_MOSAIC,      tr("马赛克"), Tool::Mosaic));
+    // 手风琴装配：按表顺序「按钮 + 参数区」内联排布，参数区初始隐藏
+    for (const ToolButtonEntry& toolEntry : G_TOOL_BUTTON_ENTRIES)
+    {
+        rootLayout->addWidget(createToolButton(toolEntry.emoji, toolEntry.tool));
+        rootLayout->addWidget(createParamWidget(toolEntry.tool));
+    }
 
-    // ---- 下部动态属性面板（stretch 占剩余空间） ----
-    m_propertyStack = new QStackedWidget(this);
-    m_propertyStack->setObjectName(QStringLiteral("propertyStack"));
-    rootLayout->addWidget(m_propertyStack, 1);
+    // stretch 吸收面板底部剩余空间：参数区展开时紧贴按钮下方，收起时留白
+    rootLayout->addStretch();
 
-    setupPropertyPages();
+    // 初始状态：默认锁定画笔工具并展开其参数区。
+    // 构造期不调用 setCurrentTool，避免误发 toolChanged；（截屏完成时外部会再同步一次）
+    QAbstractButton* penButton = m_toolButtonGroup->button(static_cast<int>(SK::Tool::Pen));
+    if (penButton != nullptr)
+    {
+        penButton->setChecked(true);
+    }
+    QWidget* penParamWidget = m_paramWidgets.value(static_cast<int>(SK::Tool::Pen));
+    if (penParamWidget != nullptr)
+    {
+        penParamWidget->setVisible(true);
+    }
 }
 
-QToolButton* AnnotationToolBar::createToolButton(const QString& emojiText,
-                                                 const QString& tooltip,
-                                                 SK::Tool tool)
+SK::ToolButton* AnnotationToolBar::createToolButton(const QString& emojiText,
+                                                    SK::Tool tool)
 {
-    auto* toolButton = new QToolButton(this);
+    auto* toolButton = new SK::ToolButton(this);
     // TODO: 替换为图标资源，暂用 emoji 占位
     toolButton->setText(emojiText);
-    toolButton->setToolTip(tooltip);
     toolButton->setCheckable(true);
+    // 纯文本回退基类绘制：ToolButton 在 TextOnly 模式下完全交由 QToolButton 自绘
     toolButton->setToolButtonStyle(Qt::ToolButtonTextOnly);
     toolButton->setObjectName(QStringLiteral("annotationToolButton"));
     toolButton->setAutoRaise(true);
@@ -187,86 +223,105 @@ QToolButton* AnnotationToolBar::createToolButton(const QString& emojiText,
     return toolButton;
 }
 
-void AnnotationToolBar::setupPropertyPages()
+QWidget* AnnotationToolBar::createParamWidget(SK::Tool tool)
 {
-    // 页面顺序与 Tool 枚举下标严格一致，setCurrentTool 可直接按枚举值切页
-    m_propertyStack->addWidget(createEmptyPage());                                  // Select
-    m_propertyStack->addWidget(createStrokePage(G_PEN_WIDTH_STEPS, &m_rectFillCheck));       // Rectangle
-    m_propertyStack->addWidget(createStrokePage(G_PEN_WIDTH_STEPS, &m_ellipseFillCheck));    // Ellipse
-    m_propertyStack->addWidget(createStrokePage(G_PEN_WIDTH_STEPS, nullptr));                 // Arrow
-    m_propertyStack->addWidget(createStrokePage(G_PEN_WIDTH_STEPS, nullptr));                 // Line
-    m_propertyStack->addWidget(createStrokePage(G_PEN_WIDTH_STEPS, nullptr));                 // Pen
-    m_propertyStack->addWidget(createStrokePage(G_HIGHLIGHT_WIDTH_STEPS, nullptr));           // Highlighter
-    m_propertyStack->addWidget(createStrokePage(G_MOSAIC_WIDTH_STEPS, nullptr));              // Mosaic
-    m_propertyStack->addWidget(createTextPage());                                            // Text
+    // 各工具参数区独立创建，产出后统一注册到 m_paramWidgets 供手风琴切换
+    QWidget* paramWidget = nullptr;
+    switch (tool)
+    {
+    case SK::Tool::Pen:
+    case SK::Tool::Line:
+    case SK::Tool::Arrow:
+        // 画笔/直线/箭头：色板 + 常规粗细档位
+        paramWidget = createStrokeParam(this, G_PEN_WIDTH_STEPS, nullptr);
+        break;
+    case SK::Tool::Highlighter:
+        // 荧光笔：色板 + 加粗档位
+        paramWidget = createStrokeParam(this, G_HIGHLIGHT_WIDTH_STEPS, nullptr);
+        break;
+    case SK::Tool::Rectangle:
+        // 矩形：色板 + 常规粗细档位 + 填充勾选
+        paramWidget = createStrokeParam(this, G_PEN_WIDTH_STEPS, &m_rectFillCheck);
+        break;
+    case SK::Tool::Ellipse:
+        // 椭圆：色板 + 常规粗细档位 + 填充勾选
+        paramWidget = createStrokeParam(this, G_PEN_WIDTH_STEPS, &m_ellipseFillCheck);
+        break;
+    case SK::Tool::Text:
+        // 文字：色板 + 字号 + 字体族
+        paramWidget = createTextParam(this);
+        break;
+    case SK::Tool::Mosaic:
+        // 马赛克：仅粗细档位（取背景色，无颜色设置）
+        paramWidget = createMosaicParam(this);
+        break;
+    default:
+        // Select 等无参数区工具：防御性兜底，本工具栏不提供此类按钮
+        paramWidget = new QWidget(this);
+        paramWidget->hide();
+        break;
+    }
 
-    // 初始无工具选中：显示选择页（空白页），避免空面板崩溃
-    m_propertyStack->setCurrentIndex(static_cast<int>(Tool::Select));
+    m_paramWidgets.insert(static_cast<int>(tool), paramWidget);
+    return paramWidget;
 }
 
-QWidget* AnnotationToolBar::createEmptyPage()
+QWidget* AnnotationToolBar::createStrokeParam(QWidget* parent,
+                                              const QVector<qreal>& widthSteps,
+                                              QCheckBox** fillCheckOut)
 {
-    // 选择工具无属性控件，仅展示操作提示，避免纯空白面板
-    auto* pageWidget = new QWidget(m_propertyStack);
-    auto* pageLayout = new QVBoxLayout(pageWidget);
-    pageLayout->setContentsMargins(0, 0, 0, 0);
-    auto* hintLabel = new QLabel(tr("选择模式：点击图元选中，拖动移动位置"), pageWidget);
-    hintLabel->setWordWrap(true);
-    hintLabel->setStyleSheet(QStringLiteral("color: #666666; font-size: 12px;"));
-    pageLayout->addWidget(hintLabel);
-    return pageWidget;
-}
+    auto* paramWidget = new QWidget(parent);
+    auto* paramLayout = new QVBoxLayout(paramWidget);
+    paramLayout->setContentsMargins(0, 0, 0, 0);
+    paramLayout->setSpacing(G_PANEL_SPACING);
 
-QWidget* AnnotationToolBar::createStrokePage(const QVector<qreal>& widthSteps,
-                                             QCheckBox** fillCheckOut)
-{
-    auto* pageWidget = new QWidget(m_propertyStack);
-    auto* pageLayout = new QVBoxLayout(pageWidget);
-    pageLayout->setContentsMargins(0, 0, 0, 0);
-    pageLayout->setSpacing(G_PANEL_SPACING);
+    // 色板行 + 粗细档位行
+    paramLayout->addWidget(createColorRow(paramWidget));
+    paramLayout->addWidget(createWidthRow(paramWidget, widthSteps));
 
-    pageLayout->addWidget(createColorRow(pageWidget));
-    pageLayout->addWidget(createWidthRow(pageWidget, widthSteps));
-
-    // 矩形/椭圆页额外提供填充勾选（通过输出参数回传勾选框指针供状态同步）
+    // 矩形/椭圆额外提供填充勾选（通过输出参数回传勾选框指针供状态同步）
     if (fillCheckOut != nullptr)
     {
-        auto* fillCheck = new QCheckBox(tr("填充"), pageWidget);
+        auto* fillCheck = new QCheckBox(tr("填充"), paramWidget);
         fillCheck->setObjectName(QStringLiteral("fillCheck"));
         connect(fillCheck, &QCheckBox::toggled, this, &AnnotationToolBar::onFillToggled);
-        pageLayout->addWidget(fillCheck);
+        paramLayout->addWidget(fillCheck);
         *fillCheckOut = fillCheck;
     }
-    return pageWidget;
+
+    // 手风琴：初始收起，由 setCurrentTool 决定何时展开
+    paramWidget->hide();
+    return paramWidget;
 }
 
-QWidget* AnnotationToolBar::createTextPage()
+QWidget* AnnotationToolBar::createTextParam(QWidget* parent)
 {
-    auto* pageWidget = new QWidget(m_propertyStack);
-    auto* pageLayout = new QVBoxLayout(pageWidget);
-    pageLayout->setContentsMargins(0, 0, 0, 0);
-    pageLayout->setSpacing(G_PANEL_SPACING);
+    auto* paramWidget = new QWidget(parent);
+    auto* paramLayout = new QVBoxLayout(paramWidget);
+    paramLayout->setContentsMargins(0, 0, 0, 0);
+    paramLayout->setSpacing(G_PANEL_SPACING);
 
-    pageLayout->addWidget(createColorRow(pageWidget));
+    // 色板行
+    paramLayout->addWidget(createColorRow(paramWidget));
 
     // 字号行：取值范围按边界常量 G_MIN/MAX_FONT_SIZE
     auto* sizeRow = new QHBoxLayout;
     sizeRow->setSpacing(G_PANEL_SPACING);
-    sizeRow->addWidget(new QLabel(tr("字号"), pageWidget));
-    auto* fontSizeSpin = new QSpinBox(pageWidget);
+    sizeRow->addWidget(new QLabel(tr("字号"), paramWidget));
+    auto* fontSizeSpin = new QSpinBox(paramWidget);
     fontSizeSpin->setObjectName(QStringLiteral("fontSizeSpin"));
-    fontSizeSpin->setRange(static_cast<int>(G_MIN_FONT_SIZE), static_cast<int>(G_MAX_FONT_SIZE));
+    fontSizeSpin->setRange(static_cast<int>(SK::G_MIN_FONT_SIZE), static_cast<int>(SK::G_MAX_FONT_SIZE));
     sizeRow->addWidget(fontSizeSpin, 1);
-    pageLayout->addLayout(sizeRow);
+    paramLayout->addLayout(sizeRow);
 
     // 字体族行
     auto* fontRow = new QHBoxLayout;
     fontRow->setSpacing(G_PANEL_SPACING);
-    fontRow->addWidget(new QLabel(tr("字体"), pageWidget));
-    auto* fontCombo = new QFontComboBox(pageWidget);
+    fontRow->addWidget(new QLabel(tr("字体"), paramWidget));
+    auto* fontCombo = new QFontComboBox(paramWidget);
     fontCombo->setObjectName(QStringLiteral("fontCombo"));
     fontRow->addWidget(fontCombo, 1);
-    pageLayout->addLayout(fontRow);
+    paramLayout->addLayout(fontRow);
 
     // 先设置默认值再连接信号，避免构造阶段误发信号
     fontSizeSpin->setValue(static_cast<int>(G_DEFAULT_FONT_SIZE));
@@ -283,7 +338,24 @@ QWidget* AnnotationToolBar::createTextPage()
         Q_EMIT fontFamilyChanged(font.family());
     });
 
-    return pageWidget;
+    // 手风琴：初始收起，由 setCurrentTool 决定何时展开
+    paramWidget->hide();
+    return paramWidget;
+}
+
+QWidget* AnnotationToolBar::createMosaicParam(QWidget* parent)
+{
+    auto* paramWidget = new QWidget(parent);
+    auto* paramLayout = new QVBoxLayout(paramWidget);
+    paramLayout->setContentsMargins(0, 0, 0, 0);
+    paramLayout->setSpacing(G_PANEL_SPACING);
+
+    // 马赛克取背景色，无颜色设置，仅提供粗细档位
+    paramLayout->addWidget(createWidthRow(paramWidget, G_MOSAIC_WIDTH_STEPS));
+
+    // 手风琴：初始收起，由 setCurrentTool 决定何时展开
+    paramWidget->hide();
+    return paramWidget;
 }
 
 QWidget* AnnotationToolBar::createColorRow(QWidget* parent)
@@ -291,7 +363,7 @@ QWidget* AnnotationToolBar::createColorRow(QWidget* parent)
     auto* rowWidget = new QWidget(parent);
     auto* colorLayout = new QHBoxLayout(rowWidget);
     colorLayout->setContentsMargins(0, 0, 0, 0);
-    colorLayout->setSpacing(4);
+    colorLayout->setSpacing(G_SWATCH_SPACING);
 
     // 色板互斥：同一时刻仅高亮一个颜色
     auto* colorGroup = new QButtonGroup(rowWidget);
@@ -312,9 +384,10 @@ QWidget* AnnotationToolBar::createColorRow(QWidget* parent)
         colorGroup->addButton(colorButton, colorIndex);
         colorLayout->addWidget(colorButton);
 
+        // 先勾选默认色再连接信号，构造期不发射 penColorChanged
         if (colorIndex == 0)
         {
-            colorButton->setChecked(true);   // 默认选中色板第一个颜色
+            colorButton->setChecked(true);
         }
         connect(colorButton, &QAbstractButton::clicked, this,
                 [this, paletteColor]()
@@ -330,7 +403,7 @@ QWidget* AnnotationToolBar::createWidthRow(QWidget* parent, const QVector<qreal>
     auto* rowWidget = new QWidget(parent);
     auto* widthLayout = new QHBoxLayout(rowWidget);
     widthLayout->setContentsMargins(0, 0, 0, 0);
-    widthLayout->setSpacing(4);
+    widthLayout->setSpacing(G_SWATCH_SPACING);
 
     // 档位互斥：同一时刻仅高亮一个粗细
     auto* widthGroup = new QButtonGroup(rowWidget);
@@ -355,9 +428,10 @@ QWidget* AnnotationToolBar::createWidthRow(QWidget* parent, const QVector<qreal>
         widthButton->setStyleSheet(
             QStringLiteral("font-size: %1px; color: #333333;").arg(dotFontSize));
 
+        // 先勾选默认档位再连接信号，构造期不发射 penWidthChanged
         if (stepIndex == 0)
         {
-            widthButton->setChecked(true);   // 默认选中第一个档位
+            widthButton->setChecked(true);
         }
         connect(widthButton, &QAbstractButton::clicked, this,
                 [this, stepValue]()
@@ -372,21 +446,21 @@ void AnnotationToolBar::setCurrentTool(SK::Tool tool)
 {
     m_currentTool = tool;
 
-    // 高亮对应工具按钮（Select 已有独立按钮，统一对所有工具高亮）
+    // 高亮对应工具按钮（枚举值与 QButtonGroup id 一致）
     QAbstractButton* targetButton = m_toolButtonGroup->button(static_cast<int>(tool));
     if (targetButton != nullptr)
     {
         targetButton->setChecked(true);
     }
 
-    // 切换到对应属性页（页面 index 与 Tool 枚举一致）
-    const int pageIndex = static_cast<int>(tool);
-    if ((pageIndex >= 0) && (pageIndex < m_propertyStack->count()))
+    // 手风琴：仅展开当前工具的参数区，其余一律收起
+    const int currentToolKey = static_cast<int>(tool);
+    for (auto paramIter = m_paramWidgets.constBegin(); paramIter != m_paramWidgets.constEnd(); ++paramIter)
     {
-        m_propertyStack->setCurrentIndex(pageIndex);
+        paramIter.value()->setVisible(paramIter.key() == currentToolKey);
     }
 
-    // 切页后同步填充勾选框状态，保证矩形/椭圆页表现一致
+    // 切页后同步填充勾选框状态，保证矩形/椭圆两页表现一致
     syncFillCheckState();
 
     // 同步场景工具：外部 setCurrentTool 与按钮点击统一经此信号分发
@@ -409,11 +483,11 @@ void AnnotationToolBar::onFillToggled(bool checked)
 void AnnotationToolBar::syncFillCheckState()
 {
     QCheckBox* currentFillCheck = nullptr;
-    if (m_currentTool == Tool::Rectangle)
+    if (m_currentTool == SK::Tool::Rectangle)
     {
         currentFillCheck = m_rectFillCheck;
     }
-    else if (m_currentTool == Tool::Ellipse)
+    else if (m_currentTool == SK::Tool::Ellipse)
     {
         currentFillCheck = m_ellipseFillCheck;
     }
@@ -424,6 +498,18 @@ void AnnotationToolBar::syncFillCheckState()
         QSignalBlocker stateBlocker(currentFillCheck);
         currentFillCheck->setChecked(m_fillChecked);
     }
+}
+
+void AnnotationToolBar::paintEvent(QPaintEvent* event)
+{
+    Q_UNUSED(event);
+    QPainter painter(this);
+    painter.setRenderHint(QPainter::Antialiasing, true);
+
+    // 自绘半透明圆角背景：与 GuidePanel 同色系（#FFE4B5 + 70% 不透明度），保持风格统一
+    QPainterPath path;
+    path.addRoundedRect(rect(), G_CORNER_RADIUS, G_CORNER_RADIUS);
+    painter.fillPath(path, QColor(G_BG_R, G_BG_G, G_BG_B, G_BG_A));
 }
 
 } // namespace SK
