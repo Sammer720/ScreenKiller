@@ -4,7 +4,7 @@
  *
  * 实现要点：
  *   1. 面板背景不依赖 QSS，直接在 paintEvent 中自绘半透明圆角矩形（WA_TranslucentBackground）。
- *   2. 内容区用 QLabel 富文本展示“鼠标中键图标 + 操作说明”，缩放比例独立一个 QLabel。
+ *   2. 内容区用 QLabel 富文本展示“鼠标按键图标 + 四行操作说明”（拖动平移 / 滚动缩放 / 点击复位 / 右键复制），缩放比例独立一个 QLabel。
  *   3. 左键点击整块面板在 折叠 / 展开 两种形态间切换，折叠时隐藏全部内容并收缩为小方块。
  */
 #include "GuidePanel.h"
@@ -32,9 +32,9 @@ constexpr int G_BG_A = 180;   // ~70% 不透明度
 constexpr qreal G_CORNER_RADIUS = 10.0;
 /// \brief 面板内边距
 constexpr int G_PADDING = 2;
-/// \brief 展开尺寸
+/// \brief 展开尺寸（容纳 4 行操作提示：拖动平移 / 滚动缩放 / 点击复位 / 右键复制）
 constexpr int G_EXPANDED_W = 160;
-constexpr int G_EXPANDED_H = 120;
+constexpr int G_EXPANDED_H = 180;
 /// \brief 折叠尺寸
 constexpr int G_COLLAPSED_SIZE = 40;
 /// \brief 折叠状态下图标占面板边长的比例（缩放到 70% 居中显示）
@@ -49,7 +49,7 @@ const QString G_HINT_TEXT = QStringLiteral("点击隐藏");
 /// \brief 「点击隐藏」小字样式（正文同色 + 半透明弱化，字号小于缩放标签）
 const QString G_HINT_STYLE = QStringLiteral(
     "color: rgb(90, 62, 27); font-size: 12px;");
-/// \brief 操作提示富文本（鼠标中键图标 + 两行说明）
+/// \brief 操作提示富文本（鼠标按键图标 + 四行说明：平移 / 缩放 / 复位 / 复制）
 const QString G_CONTENT_HTML = QStringLiteral(
     "<div style='color: #5A3E1B; font-size: 15px; line-height: 32px;'>"
     "<table border='0' cellspacing='0' cellpadding='0' style='vertical-align: middle;'>"
@@ -66,6 +66,20 @@ const QString G_CONTENT_HTML = QStringLiteral(
     "</td>"
     "<td style='padding-right: 15px; vertical-align: middle; text-align: left; white-space: nowrap;'>+ 滚动</td>"
     "<td style='vertical-align: middle; text-align: left; white-space: nowrap;'>缩放</td>"
+    "</tr>"
+    "<tr>"
+    "<td style='padding-right: 8px; vertical-align: middle; text-align: left;'>"
+    "<img src=':/icons/mouse_mid.png' width='32' height='32' style='vertical-align: middle;'/>"
+    "</td>"
+    "<td style='padding-right: 15px; vertical-align: middle; text-align: left; white-space: nowrap;'>+ 点击</td>"
+    "<td style='vertical-align: middle; text-align: left; white-space: nowrap;'>复位</td>"
+    "</tr>"
+    "<tr>"
+    "<td style='padding-right: 8px; vertical-align: middle; text-align: left;'>"
+    "<img src=':/icons/mouse_right.png' width='32' height='32' style='vertical-align: middle;'/>"
+    "</td>"
+    "<td style='padding-right: 15px; vertical-align: middle; text-align: left; white-space: nowrap;'>+ 右键</td>"
+    "<td style='vertical-align: middle; text-align: left; white-space: nowrap;'>复制</td>"
     "</tr>"
     "</table>"
     "</div>");
