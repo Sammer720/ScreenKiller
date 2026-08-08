@@ -4,7 +4,9 @@
  *
  * 实现要点：
  *   1. 面板背景不依赖 QSS，直接在 paintEvent 中自绘半透明圆角矩形（WA_TranslucentBackground）。
- *   2. 内容区用 QLabel 富文本展示“鼠标按键图标 + 四行操作说明”（拖动平移 / 滚动缩放 / 点击复位 / 右键复制），缩放比例独立一个 QLabel。
+ *   2. 内容区用 QLabel 富文本展示“鼠标按键图标 + 五行操作说明”（拖动平移 / 滚动缩放 / 点击复位 / 点击复制 / Ctrl+S保存），
+ *      表格用 HTML attribute 形式指定列宽（Qt 富文本对 <td> CSS width 支持有限），第三列右侧留白用 &nbsp; 补位压到最小；
+ *      缩放比例独立一个 QLabel。
  *   3. 左键点击整块面板在 折叠 / 展开 两种形态间切换，折叠时隐藏全部内容并收缩为小方块。
  */
 #include "GuidePanel.h"
@@ -31,10 +33,10 @@ constexpr int G_BG_A = 180;   // ~70% 不透明度
 /// \brief 圆角半径
 constexpr qreal G_CORNER_RADIUS = 10.0;
 /// \brief 面板内边距
-constexpr int G_PADDING = 2;
-/// \brief 展开尺寸（容纳 4 行操作提示：拖动平移 / 滚动缩放 / 点击复位 / 右键复制）
+constexpr int G_PADDING = 5;
+/// \brief 展开尺寸（容纳 5 行操作提示：拖动平移 / 滚动缩放 / 点击复位 / 右键复制 / Ctrl+S保存 + 底部信息行）
 constexpr int G_EXPANDED_W = 160;
-constexpr int G_EXPANDED_H = 180;
+constexpr int G_EXPANDED_H = 220;
 /// \brief 折叠尺寸
 constexpr int G_COLLAPSED_SIZE = 40;
 /// \brief 折叠状态下图标占面板边长的比例（缩放到 70% 居中显示）
@@ -49,37 +51,47 @@ const QString G_HINT_TEXT = QStringLiteral("点击隐藏");
 /// \brief 「点击隐藏」小字样式（正文同色 + 半透明弱化，字号小于缩放标签）
 const QString G_HINT_STYLE = QStringLiteral(
     "color: rgb(90, 62, 27); font-size: 12px;");
-/// \brief 操作提示富文本（鼠标按键图标 + 四行说明：平移 / 缩放 / 复位 / 复制）
+/// \brief 操作提示富文本（鼠标按键图标 + 四行说明 + Ctrl+S 快捷键行）
+/// QTextDocument 对 <td> 的 CSS width 支持有限，改用 HTML attribute 形式
+/// 让 Qt HtmlParser 正确解析列宽约束（绝对值 40/65 固定前两列，第三列吃剩余）；
+/// 第三列 text-align:right 让右侧文字紧贴 content 区右缘；
+/// Ctrl+S 行用 colspan 合并前两列写快捷键文本，与鼠标操作行风格一致
 const QString G_CONTENT_HTML = QStringLiteral(
-    "<div style='color: #5A3E1B; font-size: 15px; line-height: 32px;'>"
-    "<table border='0' cellspacing='0' cellpadding='0' style='vertical-align: middle;'>"
-    "<tr>"
-    "<td style='padding-right: 8px; vertical-align: middle; text-align: left;'>"
+    "<div style='color: #5A3E1B; font-size: 15px;'>"
+    "<table border='0' cellspacing='0' cellpadding='0' style='vertical-align: middle;' width='100%'>"
+    "<tr height='32'>"
+    "<td width='40' style='padding-right: 8px; vertical-align: middle; text-align: left;'>"
     "<img src=':/icons/mouse_mid.png' width='32' height='32' style='vertical-align: middle;'/>"
     "</td>"
-    "<td style='padding-right: 15px; vertical-align: middle; text-align: left; white-space: nowrap;'>+ 拖动</td>"
-    "<td style='vertical-align: middle; text-align: left; white-space: nowrap;'>平移</td>"
+    "<td width='65' style='padding-right: 8px; vertical-align: middle; text-align: left; white-space: nowrap;'>+ 拖动</td>"
+    "<td style='vertical-align: middle; text-align: right; white-space: nowrap;'>&nbsp;平移</td>"
     "</tr>"
-    "<tr>"
-    "<td style='padding-right: 8px; vertical-align: middle; text-align: left;'>"
+    "<tr height='32'>"
+    "<td width='40' style='padding-right: 8px; vertical-align: middle; text-align: left;'>"
     "<img src=':/icons/mouse_mid.png' width='32' height='32' style='vertical-align: middle;'/>"
     "</td>"
-    "<td style='padding-right: 15px; vertical-align: middle; text-align: left; white-space: nowrap;'>+ 滚动</td>"
-    "<td style='vertical-align: middle; text-align: left; white-space: nowrap;'>缩放</td>"
+    "<td width='65' style='padding-right: 8px; vertical-align: middle; text-align: left; white-space: nowrap;'>+ 滚动</td>"
+    "<td style='vertical-align: middle; text-align: right; white-space: nowrap;'>&nbsp;缩放</td>"
     "</tr>"
-    "<tr>"
-    "<td style='padding-right: 8px; vertical-align: middle; text-align: left;'>"
+    "<tr height='32'>"
+    "<td width='40' style='padding-right: 8px; vertical-align: middle; text-align: left;'>"
     "<img src=':/icons/mouse_mid.png' width='32' height='32' style='vertical-align: middle;'/>"
     "</td>"
-    "<td style='padding-right: 15px; vertical-align: middle; text-align: left; white-space: nowrap;'>+ 点击</td>"
-    "<td style='vertical-align: middle; text-align: left; white-space: nowrap;'>复位</td>"
+    "<td width='65' style='padding-right: 8px; vertical-align: middle; text-align: left; white-space: nowrap;'>+ 点击</td>"
+    "<td style='vertical-align: middle; text-align: right; white-space: nowrap;'>&nbsp;复位</td>"
     "</tr>"
-    "<tr>"
-    "<td style='padding-right: 8px; vertical-align: middle; text-align: left;'>"
+    "<tr height='32'>"
+    "<td width='40' style='padding-right: 8px; vertical-align: middle; text-align: left;'>"
     "<img src=':/icons/mouse_right.png' width='32' height='32' style='vertical-align: middle;'/>"
     "</td>"
-    "<td style='padding-right: 15px; vertical-align: middle; text-align: left; white-space: nowrap;'>+ 右键</td>"
-    "<td style='vertical-align: middle; text-align: left; white-space: nowrap;'>复制</td>"
+    "<td width='65' style='padding-right: 8px; vertical-align: middle; text-align: left; white-space: nowrap;'>+ 点击</td>"
+    "<td style='vertical-align: middle; text-align: right; white-space: nowrap;'>&nbsp;复制</td>"
+    "</tr>"
+    "<tr height='32'>"
+    "<td colspan='2' width='105' style='padding-right: 8px; vertical-align: middle; text-align: left; white-space: nowrap; line-height: 32px;'>"
+    "Ctrl + S"
+    "</td>"
+    "<td style='vertical-align: middle; text-align: right; white-space: nowrap; line-height: 32px;'>保存</td>"
     "</tr>"
     "</table>"
     "</div>");

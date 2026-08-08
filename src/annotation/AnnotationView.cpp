@@ -19,6 +19,10 @@ namespace {
 
 /// \brief 缩放因子（每次滚轮缩放比例）
 constexpr qreal G_ZOOM_FACTOR = 1.15;
+/// \brief 缩放上限（500%）
+constexpr qreal G_MAX_SCALE = 5.0;
+/// \brief 缩放下限（10%）
+constexpr qreal G_MIN_SCALE = 0.1;
 /// \brief 视图背景色（浅灰蓝）
 const int G_BG_R = 245;
 const int G_BG_G = 247;
@@ -70,7 +74,21 @@ void AnnotationView::wheelEvent(QWheelEvent* event)
     const qreal factor = (event->angleDelta().y() > 0)
                          ? G_ZOOM_FACTOR
                          : 1.0 / G_ZOOM_FACTOR;
-    scale(factor, factor);
+
+    // 计算目标缩放并夹取到 [10%, 500%] 边界内：
+    // 达到边界后继续滚动时目标值被夹取为边界值，实际缩放因子趋近 1，缩放不再变化
+    const qreal currentScale = transform().m11();
+    const qreal targetScale  = qBound(G_MIN_SCALE, currentScale * factor, G_MAX_SCALE);
+    const qreal actualFactor = targetScale / currentScale;
+
+    // 已处于边界（实际因子为 1）时不再触发缩放，避免无谓的变换与滚动条刷新
+    if (qFuzzyCompare(actualFactor, 1.0))
+    {
+        event->accept();
+        return;
+    }
+
+    scale(actualFactor, actualFactor);
     // 缩放会重建滚动范围，这里重新应用平移边界
     applyPanMargin();
     // 通知外部监听者缩放比例已变化（如引导面板的缩放百分比显示）
