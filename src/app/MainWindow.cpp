@@ -491,8 +491,11 @@ void MainWindow::onCaptureFinished(const QImage& image)
     m_centralStack->setCurrentIndex(G_PAGE_ANNOTATION);
 
     // 显示标注工具栏并启用（初始隐藏，仅标注页需要）
+    // raise() 置顶：QStackedWidget 切换页面后当前页面会被提到最前，
+    // 不显式 raise 工具栏会被 m_view 遮挡（与 GuidePanel 同一处理模式）
     m_annToolBar->show();
     m_annToolBar->setEnabled(true);
+    m_annToolBar->raise();
     updateAnnotationToolBarGeometry();
 
     // 显示保存按钮
@@ -515,6 +518,11 @@ void MainWindow::onCaptureFinished(const QImage& image)
     QTimer::singleShot(0, this, [this]()
     {
         m_view->fitToView();
+        if (m_annToolBar != nullptr)
+        {
+            // 页面布局落定后再次置顶，确保工具栏浮于标注视图之上
+            m_annToolBar->raise();
+        }
         if (m_guidePanel != nullptr)
         {
             // 切换到标注页后显式置顶并显示引导面板，避免被中央栈其他页面遮挡
