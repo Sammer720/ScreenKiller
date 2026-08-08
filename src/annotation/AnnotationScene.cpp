@@ -6,6 +6,7 @@
 
 #include <QGraphicsPixmapItem>
 #include <QGraphicsSceneMouseEvent>
+#include <QFont>
 #include <QLineF>
 #include <QPainter>
 #include <QPixmap>
@@ -16,6 +17,7 @@
 #include "items/BaseAnnotationItem.h"
 #include "items/EllipseItem.h"
 #include "items/HighlighterItem.h"
+#include "items/MosaicItem.h"
 #include "items/PenItem.h"
 #include "items/RectangleItem.h"
 #include "items/TextItem.h"
@@ -58,6 +60,21 @@ public:
     /// @return 描述字符串
     QString description() const override { return QStringLiteral("AddItem"); }
 
+    /// @brief 析构：命令被撤销栈淘汰或场景销毁时释放图元所有权
+    ///
+    /// 图元所有权在场景与命令之间转移：命令最后一次执行（redo 后或从未撤销）
+    /// 时图元仍在场景中，需先 removeItem 再由本命令释放；
+    /// 若最后一次执行的是 undo，图元已被移出场景，直接释放即可。
+    ~AddItemCommand() override
+    {
+        // 图元仍被场景持有（未撤销或重做后）时先移除，再释放内存
+        if ((m_item != nullptr) && (m_item->scene() != nullptr))
+        {
+            m_scene->removeItem(m_item);
+        }
+        delete m_item;
+    }
+
 private:
     QGraphicsScene* m_scene;                 ///< 目标场景
     SK::BaseAnnotationItem* m_item;           ///< 待添加图元（所有权在 scene 与本命令间转移）
@@ -99,6 +116,13 @@ AnnotationScene::AnnotationScene(QObject* parent) : QGraphicsScene(parent)
     m_undoStack = new UndoStack(this, G_UNDO_LIMIT);
     connect(m_undoStack, &UndoStack::changed, this,
             &AnnotationScene::historyChanged);
+}
+
+AnnotationScene::~AnnotationScene()
+{
+    // 先清空撤销栈：命令析构会在场景图元仍存活时完成 removeItem + delete，
+    // 避免 QGraphicsScene 基类析构删除场景图元后，命令再访问悬垂指针
+    m_undoStack->clear();
 }
 
 void AnnotationScene::loadImage(const QImage& image)
@@ -235,11 +259,17 @@ void AnnotationScene::beginCreateItem(Tool t, const QPointF& pos)
     case Tool::Highlighter:
         item = new HighlighterItem();
         break;
+    case Tool::Mosaic:
+        item = new MosaicItem();
+        break;
     case Tool::Text:
     {
         // 文字直接在点击点创建一个空 TextItem，触发输入框
         auto* textItem = new TextItem();
         textItem->setPos(pos);
+        // 应用当前字号与字体族，修复字号/字体断链
+        QFont textFont(m_fontFamily, qRound(m_fontSize));
+        textItem->setFont(textFont);
         textItem->setText(QStringLiteral("双击编辑"));
         pushAddCommand(textItem);
         // 模拟双击 -> 弹出输入框由 TextItem 自身处理
@@ -265,7 +295,7 @@ void AnnotationScene::beginCreateItem(Tool t, const QPointF& pos)
     m_currentItem = item;
 
     // 画笔类工具立即追加第一个点
-    if ((t == Tool::Pen) || (t == Tool::Highlighter))
+    if ((t == Tool::Pen) || (t == Tool::Highlighter) || (t == Tool::Mosaic))
     {
         auto* pen = dynamic_cast<PenItem*>(item);
         if (pen != nullptr)

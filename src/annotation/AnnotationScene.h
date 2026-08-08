@@ -14,7 +14,9 @@
 #include <QImage>
 #include <QColor>
 #include <QPointF>
+#include <QString>
 
+#include "AnnotationConstants.h"
 #include "UndoStack.h"
 
 class QGraphicsPixmapItem;
@@ -36,6 +38,7 @@ enum class Tool
     Line,         ///< 直线标注
     Pen,          ///< 自由画笔
     Highlighter, ///< 高亮画笔
+    Mosaic,       ///< 马赛克涂抹
     Text          ///< 文字标注
 };
 
@@ -56,10 +59,24 @@ public:
     explicit AnnotationScene(QObject* parent = nullptr);
 
     /**
+     * @brief 析构函数
+     *
+     * 先清空撤销栈，让 Add/Remove 命令在 QGraphicsScene 基类析构删除场景图元之前
+     * 完成图元释放，避免命令析构访问已删除图元导致的悬垂指针与双重释放。
+     */
+    ~AnnotationScene() override;
+
+    /**
      * @brief 加载背景图像
      * @param image 背景图像
      */
     void loadImage(const QImage& image);
+
+    /**
+     * @brief 获取背景图像（const 引用，避免绘制时复制大图）
+     * @return 背景图像引用
+     */
+    const QImage& backgroundImage() const { return m_bgImage; }
 
     /**
      * @brief 导出当前画布（背景 + 所有标注）为单张 QImage
@@ -86,10 +103,10 @@ public:
     void setPenColor(const QColor& c)    { m_penColor = c;    }
 
     /**
-     * @brief 设置画笔线宽
+     * @brief 设置画笔线宽（按边界常量 clamp 到合法范围）
      * @param w 线宽
      */
-    void setPenWidth(qreal w)            { m_penWidth = w;    }
+    void setPenWidth(qreal w) { m_penWidth = qBound(G_MIN_PEN_WIDTH, w, G_MAX_PEN_WIDTH); }
 
     /**
      * @brief 设置填充颜色
@@ -126,6 +143,30 @@ public:
      * @return 填充样式
      */
     Qt::BrushStyle brushStyle() const { return m_brushStyle; }
+
+    /**
+     * @brief 设置文字字号（按边界常量 clamp 到合法范围）
+     * @param s 字号（pt）
+     */
+    void setFontSize(qreal s) { m_fontSize = qBound(G_MIN_FONT_SIZE, s, G_MAX_FONT_SIZE); }
+
+    /**
+     * @brief 设置文字字体族
+     * @param f 字体族名称
+     */
+    void setFontFamily(const QString& f) { m_fontFamily = f; }
+
+    /**
+     * @brief 获取文字字号
+     * @return 字号（pt）
+     */
+    qreal fontSize() const { return m_fontSize; }
+
+    /**
+     * @brief 获取文字字体族
+     * @return 字体族名称
+     */
+    QString fontFamily() const { return m_fontFamily; }
 
     /**
      * @brief 获取撤销栈
@@ -199,6 +240,8 @@ private:
     qreal     m_penWidth  = 2.0;                  ///< 画笔线宽
     QColor    m_brushColor{ Qt::transparent };    ///< 填充颜色
     Qt::BrushStyle m_brushStyle = Qt::NoBrush;    ///< 填充样式
+    qreal     m_fontSize  = 12.0;                 ///< 文字字号（pt）
+    QString   m_fontFamily = QStringLiteral("微软雅黑");  ///< 文字字体族
 
     BaseAnnotationItem* m_currentItem = nullptr;  ///< 正在创建的图元
     QPointF   m_startPos;                          ///< 创建起点
