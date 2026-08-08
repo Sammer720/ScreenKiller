@@ -498,6 +498,10 @@ void MainWindow::onCaptureFinished(const QImage& image)
     m_annToolBar->raise();
     updateAnnotationToolBarGeometry();
 
+    // 默认进入画笔工具：属性面板立即显示颜色/粗细，避免停留在空白选择页
+    // （setCurrentTool 发射 toolChanged，经既有 connect 同步场景工具）
+    m_annToolBar->setCurrentTool(SK::Tool::Pen);
+
     // 显示保存按钮
     m_toolBar->setShowSaveButton(true);
 

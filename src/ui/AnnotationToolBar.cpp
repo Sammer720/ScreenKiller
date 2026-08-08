@@ -43,6 +43,8 @@ constexpr qreal G_DOT_FONT_SCALE = 0.6;
 
 // ============================ 工具按钮 emoji 占位 ============================
 // TODO: 替换为图标资源，暂用 emoji 占位
+/// 选择按钮占位文本
+const QString G_EMOJI_SELECT      = QStringLiteral("🖱️");
 /// 画笔按钮占位文本
 const QString G_EMOJI_PEN         = QStringLiteral("✏️");
 /// 荧光笔按钮占位文本
@@ -136,6 +138,7 @@ void AnnotationToolBar::setupUi()
     rootLayout->setSpacing(G_PANEL_SPACING);
 
     // ---- 上部工具按钮列（竖排） ----
+    rootLayout->addWidget(createToolButton(G_EMOJI_SELECT,      tr("选择/移动"), Tool::Select));
     rootLayout->addWidget(createToolButton(G_EMOJI_PEN,         tr("画笔"),   Tool::Pen));
     rootLayout->addWidget(createToolButton(G_EMOJI_HIGHLIGHTER, tr("荧光笔"), Tool::Highlighter));
     rootLayout->addWidget(createToolButton(G_EMOJI_LINE,        tr("直线"),   Tool::Line));
@@ -203,8 +206,15 @@ void AnnotationToolBar::setupPropertyPages()
 
 QWidget* AnnotationToolBar::createEmptyPage()
 {
-    // 选择工具无任何属性，空白页即可
-    return new QWidget(m_propertyStack);
+    // 选择工具无属性控件，仅展示操作提示，避免纯空白面板
+    auto* pageWidget = new QWidget(m_propertyStack);
+    auto* pageLayout = new QVBoxLayout(pageWidget);
+    pageLayout->setContentsMargins(0, 0, 0, 0);
+    auto* hintLabel = new QLabel(tr("选择模式：点击图元选中，拖动移动位置"), pageWidget);
+    hintLabel->setWordWrap(true);
+    hintLabel->setStyleSheet(QStringLiteral("color: #666666; font-size: 12px;"));
+    pageLayout->addWidget(hintLabel);
+    return pageWidget;
 }
 
 QWidget* AnnotationToolBar::createStrokePage(const QVector<qreal>& widthSteps,
@@ -362,14 +372,11 @@ void AnnotationToolBar::setCurrentTool(SK::Tool tool)
 {
     m_currentTool = tool;
 
-    // 高亮对应工具按钮（Select 无独立按钮，跳过）
-    if (tool != Tool::Select)
+    // 高亮对应工具按钮（Select 已有独立按钮，统一对所有工具高亮）
+    QAbstractButton* targetButton = m_toolButtonGroup->button(static_cast<int>(tool));
+    if (targetButton != nullptr)
     {
-        QAbstractButton* targetButton = m_toolButtonGroup->button(static_cast<int>(tool));
-        if (targetButton != nullptr)
-        {
-            targetButton->setChecked(true);
-        }
+        targetButton->setChecked(true);
     }
 
     // 切换到对应属性页（页面 index 与 Tool 枚举一致）
@@ -381,12 +388,14 @@ void AnnotationToolBar::setCurrentTool(SK::Tool tool)
 
     // 切页后同步填充勾选框状态，保证矩形/椭圆页表现一致
     syncFillCheckState();
+
+    // 同步场景工具：外部 setCurrentTool 与按钮点击统一经此信号分发
+    Q_EMIT toolChanged(tool);
 }
 
 void AnnotationToolBar::onToolButtonClicked(SK::Tool tool)
 {
     setCurrentTool(tool);
-    Q_EMIT toolChanged(tool);
 }
 
 void AnnotationToolBar::onFillToggled(bool checked)
