@@ -449,9 +449,12 @@ void MainWindow::updateAnnotationToolBarGeometry()
     // 工具栏右侧贴边：X = 中央栈宽度 - 工具栏宽 - 边距；Y 与高度留出上下边距
     const int toolbarX = m_centralStack->width() - SK::G_ANN_TOOLBAR_WIDTH - G_ANN_TOOLBAR_MARGIN;
     const int toolbarY = G_ANN_TOOLBAR_MARGIN;
-    // 高度至少保留 1 像素，避免窗口被压缩到最小时计算出负高度
-    const int toolbarHeight =
+    // 手风琴工具栏高度随内容：取 sizeHint 高度与可用高度的较小值，
+    // 避免拉伸满高留大片空白；可用高度至少保留 1 像素，防止窗口压缩到最小时负高度
+    const int preferredHeight = m_annToolBar->sizeHint().height();
+    const int availableHeight =
         qMax(1, m_centralStack->height() - 2 * G_ANN_TOOLBAR_MARGIN);
+    const int toolbarHeight = qMin(preferredHeight, availableHeight);
 
     m_annToolBar->setGeometry(
         toolbarX, toolbarY, SK::G_ANN_TOOLBAR_WIDTH, toolbarHeight);
