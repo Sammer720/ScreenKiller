@@ -15,6 +15,7 @@
 #include <QGraphicsSceneMouseEvent>
 #include <QGraphicsScene>
 
+#include <algorithm>
 #include <memory>
 
 #include "AnnotationScene.h"
@@ -112,14 +113,50 @@ ResizeHandle BaseAnnotationItem::handleAt(const QPointF& pos) const
     return ResizeHandle::None;
 }
 
-// itemChange：选中态变化时重绘以显示/隐藏手柄
+// itemChange：选中态重绘手柄 + 位置 clamp 到场景边界（截图范围）
 QVariant BaseAnnotationItem::itemChange(GraphicsItemChange change,
                                         const QVariant& value)
 {
+    // 选中态变化时重绘以显示/隐藏手柄
     if (change == ItemSelectedHasChanged)
     {
-        update();  // 选中态变化时重绘以显示/隐藏手柄
+        update();
     }
+
+    // 位置即将改变时 clamp 到场景边界（截图范围），防止图元移出图片
+    // 注意用 ItemPositionChange 而非 ItemPositionHasChanged：
+    // 前者是位置即将改变、修改返回值生效；后者是事后通知、修改不生效
+    if (change == ItemPositionChange)
+    {
+        QGraphicsScene* ownerScene = scene();
+        if (ownerScene != nullptr)
+        {
+            const QRectF sceneBounds = ownerScene->sceneRect();
+            if (!sceneBounds.isNull())
+            {
+                QPointF newPos = value.toPointF();
+                QRectF itemBounds = boundingRect();
+                // 计算允许的位置范围：图元外接矩形必须整体落在场景矩形内
+                qreal minX = sceneBounds.left() - itemBounds.left();
+                qreal maxX = sceneBounds.right() - itemBounds.right();
+                qreal minY = sceneBounds.top() - itemBounds.top();
+                qreal maxY = sceneBounds.bottom() - itemBounds.bottom();
+                // 图元比场景还大时该轴不做约束（std::clamp 在 lo > hi 时是未定义行为）
+                if (minX <= maxX)
+                {
+                    newPos.setX(std::clamp(newPos.x(), minX, maxX));
+                }
+                if (minY <= maxY)
+                {
+                    newPos.setY(std::clamp(newPos.y(), minY, maxY));
+                }
+                return newPos;
+            }
+        }
+        // scene() 为 null（beginCreateItem 中 setPos 在 addItem 之前）
+        // 或场景矩形为空（未加载图片）时不做约束，返回原值
+    }
+
     return QGraphicsItem::itemChange(change, value);
 }
 

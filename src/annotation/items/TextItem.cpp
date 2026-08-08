@@ -32,6 +32,9 @@ TextItem::TextItem(QGraphicsItem* parent)
 {
     setFlag(ItemIsSelectable, true);
     setFlag(ItemIsMovable, true);
+    // 必须发送几何变化通知，否则移动时不触发 itemChange 的
+    // ItemPositionChange 分支，位置 clamp 对文字图元无效
+    setFlag(ItemSendsGeometryChanges, true);
     setPenColor(Qt::black);
     setBrushColor(G_TEXT_BG_COLOR);
 }
