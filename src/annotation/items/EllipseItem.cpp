@@ -22,6 +22,18 @@ EllipseItem::EllipseItem(QGraphicsItem* parent)
     setFlag(ItemSendsGeometryChanges, true);
 }
 
+void EllipseItem::setRect(const QRectF& rect)
+{
+    m_rect = rect;
+    prepareGeometryChange();
+    update();
+}
+
+QRectF EllipseItem::rect() const
+{
+    return m_rect;
+}
+
 QRectF EllipseItem::boundingRect() const
 {
     // 半线宽 + 边距，确保边框不被裁剪

@@ -56,38 +56,37 @@ public:
      * @brief 构造函数
      * @param parent Qt 父图元；为 nullptr 时为顶层图元
      */
-    explicit BaseAnnotationItem(QGraphicsItem* parent = nullptr)
-        : QGraphicsItem(parent) {}
+    explicit BaseAnnotationItem(QGraphicsItem* parent = nullptr);
 
     /// @brief 析构
     virtual ~BaseAnnotationItem() = default;
 
     /// @brief 设置画笔颜色
     /// @param c 颜色
-    void setPenColor(const QColor& c)   { m_pen.setColor(c); update(); }
+    void setPenColor(const QColor& c);
     /// @brief 设置画笔线宽
     /// @param w 线宽（像素）
-    void setPenWidth(qreal w)           { m_pen.setWidthF(w); update(); }
+    void setPenWidth(qreal w);
     /// @brief 设置画笔风格
     /// @param s Qt::PenStyle 枚举
-    void setPenStyle(Qt::PenStyle s)     { m_pen.setStyle(s); update(); }
+    void setPenStyle(Qt::PenStyle s);
     /// @brief 设置画刷颜色
     /// @param c 颜色
-    void setBrushColor(const QColor& c) { m_brush.setColor(c); update(); }
+    void setBrushColor(const QColor& c);
     /// @brief 设置画刷风格
     /// @param s Qt::BrushStyle 枚举
-    void setBrushStyle(Qt::BrushStyle s){ m_brush.setStyle(s); update(); }
+    void setBrushStyle(Qt::BrushStyle s);
 
     /// @brief 获取画笔颜色
-    QColor    penColor()    const { return m_pen.color();    }
+    QColor    penColor()    const;
     /// @brief 获取画笔线宽
-    qreal     penWidth()    const { return m_pen.widthF();   }
+    qreal     penWidth()    const;
     /// @brief 获取画笔风格
-    Qt::PenStyle   penStyle()  const { return m_pen.style();    }
+    Qt::PenStyle   penStyle()  const;
     /// @brief 获取画刷颜色
-    QColor    brushColor()  const { return m_brush.color();  }
+    QColor    brushColor()  const;
     /// @brief 获取画刷风格
-    Qt::BrushStyle brushStyle() const { return m_brush.style(); }
+    Qt::BrushStyle brushStyle() const;
 
     /// @brief 最终 paint：调用 paintContent() + 选中时绘制手柄
     void paint(QPainter* painter, const QStyleOptionGraphicsItem* option,

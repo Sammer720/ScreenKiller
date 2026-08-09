@@ -15,8 +15,13 @@
 #pragma once
 
 #include <QGraphicsView>
+#include <QPointer>
+#include <QElapsedTimer>
 
-namespace SK { class AnnotationScene; }
+class QLineEdit;
+class QEvent;
+
+namespace SK { class AnnotationScene; class TextItem; }
 
 /**
  * @brief 标注画布视图
@@ -41,6 +46,14 @@ public:
      */
     void fitToView();
 
+    /**
+     * @brief 复位到默认视图：100% 缩放并居中到场景中心
+     *
+     * 新截图加载后或中键点击（未拖动）时调用，使视图回到最自然的浏览状态。
+     * 复位成功后发射 zoomChanged（缩放因子回到 1.0）。
+     */
+    void resetToDefault();
+
 Q_SIGNALS:
     /// @brief 视图缩放比例变化
     /// @param scale 当前缩放因子（1.0 = 100%）
@@ -48,6 +61,13 @@ Q_SIGNALS:
 
     /// @brief 当前标注成品图已成功复制到系统剪贴板
     void imageCopied();
+
+private Q_SLOTS:
+    /**
+     * @brief 文字编辑请求槽：在点击位置弹出视图内联编辑器
+     * @param item 待编辑的空文字图元
+     */
+    void onTextEditRequested(SK::TextItem* item);
 
 protected:
     /**
@@ -105,10 +125,29 @@ private:
      */
     void applyPanMargin();
 
+    /**
+     * @brief 关闭文字内联编辑器并按提交/丢弃语义处理图元
+     * @param commit true 表示提交（非空文字压入撤销栈），false 表示丢弃图元
+     */
+    void closeTextEditor(bool commit);
+
+    /**
+     * @brief 事件过滤器：捕获文字编辑器的 Esc 键用于取消输入
+     * @param watched 被监视对象
+     * @param event 事件
+     * @return 事件被处理时返回 true
+     */
+    bool eventFilter(QObject* watched, QEvent* event) override;
+
     SK::AnnotationScene* m_scene;  ///< 关联的标注场景（不持有所有权）
     bool m_panning = false;        ///< 是否处于中键平移状态
     bool m_panMoved = false;       ///< 平移过程中是否发生了实际拖动（用于区分中键点击）
     QPoint m_panStart;             ///< 平移开始时的鼠标位置
     int m_panStartHVal = 0;        ///< 平移开始时水平滚动条值
     int m_panStartVVal = 0;        ///< 平移开始时垂直滚动条值
+
+    QPointer<QLineEdit> m_textEditor;             ///< 文字内联编辑器（viewport 子控件，不进场景）
+    SK::TextItem* m_editingTextItem = nullptr;    ///< 正在编辑的文字图元（生命周期由场景/关闭流程保证）
+    bool m_editorClosing = false;                 ///< 编辑器关闭守卫（防 editingFinished 重入）
+    QElapsedTimer m_deleteTimer;                  ///< Delete 双击计时器（间隔 ≤400ms 判定双击清空）
 };

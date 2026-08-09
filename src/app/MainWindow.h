@@ -36,6 +36,7 @@
 
 class QStackedWidget;
 class QLabel;
+class QResizeEvent;
 class AnnotationView;
 class GlobalHotkey;
 
@@ -44,6 +45,7 @@ namespace SK {
 class ToolBar;
 class AnnotationScene;
 class GuidePanel;
+class AnnotationToolBar;
 
 class MainWindow : public QMainWindow
 {
@@ -70,6 +72,8 @@ protected:
     bool nativeEvent(const QByteArray& eventType, void* message, qintptr* result) override;
     /// @brief 窗口关闭时注销全局快捷键，并调用父类 closeEvent
     void closeEvent(QCloseEvent* event) override;
+    /// @brief 窗口尺寸变化时联动标注工具栏位置（右侧贴边悬浮）
+    void resizeEvent(QResizeEvent* event) override;
 
 Q_SIGNALS:
     /// @brief 请求退出应用（由 main.cpp 连接到 QApplication::quit）
@@ -121,6 +125,11 @@ private:
     /// @brief 显示「图片已复制到剪贴板」托盘气泡通知（截屏完成与标注页右键复制共用）
     /// @param title 通知标题
     void showImageCopiedNotice(const QString& title);
+    /// @brief 计算标注工具栏右侧贴边悬浮的几何位置并应用
+    ///
+    /// 工具栏是中央页栈的直接子控件，叠加显示在标注页之上；
+    /// 窗口尺寸变化时由 resizeEvent 统一调用，保证位置跟随窗口缩放。
+    void updateAnnotationToolBarGeometry();
 
     ToolBar*            m_toolBar        = nullptr;  ///< 顶部工具栏
     QStackedWidget*     m_centralStack   = nullptr;  ///< 中心页栈（占位/标注视口切换）
@@ -132,6 +141,7 @@ private:
     CaptureMode         m_mode           = CaptureMode::Region;  ///< 当前截屏模式
     CaptureEngine*      m_capture        = nullptr;  ///< 截屏引擎
     GuidePanel*         m_guidePanel     = nullptr;  ///< 标注页悬浮引导面板
+    AnnotationToolBar*  m_annToolBar     = nullptr;  ///< 标注工具栏（标注页右侧悬浮）
 
     static constexpr int kHotKeyId = 0x0001;   ///< Ctrl+Alt+A 的快捷键 ID
 };

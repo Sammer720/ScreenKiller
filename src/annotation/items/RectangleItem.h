@@ -36,9 +36,9 @@ public:
 
     /// @brief 设置矩形几何
     /// @param r 矩形坐标（局部坐标系）
-    void setRect(const QRectF& r) { m_rect = r; prepareGeometryChange(); update(); }
+    void setRect(const QRectF& r);
     /// @brief 获取矩形几何
-    QRectF rect() const { return m_rect; }
+    QRectF rect() const;
 
 private:
     QRectF m_rect;   ///< 矩形几何

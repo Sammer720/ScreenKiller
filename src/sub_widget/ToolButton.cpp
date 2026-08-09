@@ -61,11 +61,15 @@ void ToolButton::setTriStateIcons(const QIcon& normal,
     }
 }
 
+void ToolButton::setToolTipEnabled(bool enabled)
+{
+    m_blockToolTip = enabled;
+}
+
 bool ToolButton::event(QEvent* event)
 {
-    // 拦截 ToolTip：QToolButton 收到该事件会直接显示 action 的 tooltip/text，
-    // 置空 tooltip 无法阻止，必须在此吞掉事件
-    if (event->type() == QEvent::ToolTip)
+    // 仅启用拦截时才吞掉 ToolTip（标注工具栏需要 tooltip，主工具栏保持现状）
+    if (m_blockToolTip && (event->type() == QEvent::ToolTip))
     {
         event->accept();
         return true;

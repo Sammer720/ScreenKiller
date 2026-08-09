@@ -67,6 +67,12 @@ public:
      */
     void attachMenu(QMenu* menu);
 
+    /**
+     * @brief 设置是否拦截 tooltip 事件（默认 true=拦截，主工具栏按钮不显示 tooltip）
+     * @param enabled true=拦截（保持现状）；false=放行，setToolTip 生效
+     */
+    void setToolTipEnabled(bool enabled);
+
 protected:
     /**
      * @brief 事件入口：拦截 QEvent::ToolTip 阻止 tooltip 显示
@@ -104,6 +110,7 @@ private:
     bool m_triStateEnabled = false;  ///< 是否启用了三态图标
     bool m_hovered = false;          ///< 鼠标是否悬停
     bool m_pressed = false;          ///< 左键是否按下/菜单是否打开
+    bool m_blockToolTip = true;      ///< 是否拦截 tooltip（默认拦截）
 };
 
 } // namespace SK

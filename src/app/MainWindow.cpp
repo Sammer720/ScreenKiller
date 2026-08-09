@@ -39,7 +39,9 @@
 
 #include "annotation/AnnotationView.h"
 #include "annotation/AnnotationScene.h"
+#include "annotation/AnnotationConstants.h"
 #include "GlobalHotkey.h"
+#include "ui/AnnotationToolBar.h"
 #include "ui/GuidePanel.h"
 #include "ui/ToolBar.h"
 #include "utils/Logger.h"
@@ -82,6 +84,11 @@ const QString G_CONFIG_KEY_GEOMETRY = QStringLiteral("mainWindow/geometry");
 const QString G_CONFIG_KEY_CAPTURE_MODE = QStringLiteral("mainWindow/captureMode");
 /// \brief 引导面板距标注视口左上角的边距（像素），需足够避开视口边框和内边距
 constexpr int G_GUIDE_PANEL_MARGIN = 24;
+/// \brief 标注工具栏距中央栈边缘的边距（像素）
+///
+/// 与 GuidePanel 的 24 不同：GuidePanel 在左上角，工具栏在右侧贴边，
+/// 两者分属不同区域不会重叠，右侧边距取 12 即可保证视觉均衡。
+constexpr int G_ANN_TOOLBAR_MARGIN = 12;
 }
 
 MainWindow::MainWindow(QWidget* parent)
@@ -201,6 +208,32 @@ void MainWindow::setupUi()
     // 初始处于占位页，引导面板保持隐藏；截屏完成切换到标注页后由 onCaptureFinished 显示
     m_guidePanel->hide();
 
+    // 标注工具栏：右侧贴边悬浮，与左上角 GuidePanel 分居两侧互不重叠
+    // 同样以 m_centralStack 为父控件（不能是 m_view，原因同上）；
+    // 初始隐藏，截屏完成后由 onCaptureFinished 显示。
+    m_annToolBar = new AnnotationToolBar(m_centralStack);
+    m_annToolBar->hide();
+
+    // 工具栏 → 标注场景：工具切换与画笔/文字属性变化实时同步到场景
+    connect(m_annToolBar, &AnnotationToolBar::toolChanged,
+            m_scene, &AnnotationScene::setTool);
+    connect(m_annToolBar, &AnnotationToolBar::penColorChanged,
+            m_scene, &AnnotationScene::setPenColor);
+    connect(m_annToolBar, &AnnotationToolBar::penWidthChanged,
+            m_scene, &AnnotationScene::setPenWidth);
+    connect(m_annToolBar, &AnnotationToolBar::brushStyleChanged,
+            m_scene, &AnnotationScene::setBrushStyle);
+    connect(m_annToolBar, &AnnotationToolBar::fontSizeChanged,
+            m_scene, &AnnotationScene::setFontSize);
+    connect(m_annToolBar, &AnnotationToolBar::fontFamilyChanged,
+            m_scene, &AnnotationScene::setFontFamily);
+    connect(m_annToolBar, &AnnotationToolBar::highlighterAlphaChanged,
+            m_scene, &AnnotationScene::setHighlighterAlpha);
+
+    // 用户开始标注时自动收回工具栏二三级展开
+    connect(m_scene, &AnnotationScene::annotationStarted,
+            m_annToolBar, &AnnotationToolBar::collapseExpanded);
+
     // 滚轮缩放时实时更新引导面板的缩放比例显示
     connect(m_view, &AnnotationView::zoomChanged,
             m_guidePanel, &GuidePanel::setZoomScale);
@@ -258,8 +291,8 @@ void MainWindow::registerHotkeys()
         SK::utils::showWarning(
             this,
             tr("警告"),
-            tr("全局快捷键  Ctrl + Alt + A  已占用。\n"
-               "将无法使用快捷键截图，请关闭冲突程序后重启 ScreenKiller。"));
+            tr("存在其他进程占用快捷键 Ctrl + Alt + A 。\n"
+               "将无法使用快捷键截图，请关闭冲突进程后重启。"));
     }
 }
 
@@ -402,6 +435,37 @@ void MainWindow::closeEvent(QCloseEvent* event)
     QMainWindow::closeEvent(event);
 }
 
+void MainWindow::resizeEvent(QResizeEvent* event)
+{
+    QMainWindow::resizeEvent(event);
+    // 窗口尺寸变化时同步标注工具栏位置（右侧贴边悬浮）
+    if (m_annToolBar != nullptr)
+    {
+        updateAnnotationToolBarGeometry();
+    }
+}
+
+void MainWindow::updateAnnotationToolBarGeometry()
+{
+    if ((m_annToolBar == nullptr) || (m_centralStack == nullptr))
+    {
+        return;
+    }
+
+    // 工具栏右侧贴边：X = 中央栈宽度 - 工具栏宽 - 边距；Y 与高度留出上下边距
+    const int toolbarX = m_centralStack->width() - SK::G_ANN_TOOLBAR_WIDTH - G_ANN_TOOLBAR_MARGIN;
+    const int toolbarY = G_ANN_TOOLBAR_MARGIN;
+    // 手风琴工具栏高度随内容：取 sizeHint 高度与可用高度的较小值，
+    // 避免拉伸满高留大片空白；可用高度至少保留 1 像素，防止窗口压缩到最小时负高度
+    const int preferredHeight = m_annToolBar->sizeHint().height();
+    const int availableHeight =
+        qMax(1, m_centralStack->height() - 2 * G_ANN_TOOLBAR_MARGIN);
+    const int toolbarHeight = qMin(preferredHeight, availableHeight);
+
+    m_annToolBar->setGeometry(
+        toolbarX, toolbarY, SK::G_ANN_TOOLBAR_WIDTH, toolbarHeight);
+}
+
 // -----------------------------------------------------------------------------
 // 槽
 // -----------------------------------------------------------------------------
@@ -435,6 +499,17 @@ void MainWindow::onCaptureFinished(const QImage& image)
     // 切换到标注视口
     m_centralStack->setCurrentIndex(G_PAGE_ANNOTATION);
 
+    // 显示标注工具栏并启用（初始隐藏，仅标注页需要）
+    // raise() 置顶：QStackedWidget 切换页面后当前页面会被提到最前，
+    // 不显式 raise 工具栏会被 m_view 遮挡（与 GuidePanel 同一处理模式）
+    m_annToolBar->show();
+    m_annToolBar->setEnabled(true);
+    m_annToolBar->raise();
+    updateAnnotationToolBarGeometry();
+
+    // 从 QSettings 恢复上次使用的默认工具（含几何默认图形与参数）
+    m_annToolBar->restoreDefaultTool();
+
     // 显示保存按钮
     m_toolBar->setShowSaveButton(true);
 
@@ -449,12 +524,17 @@ void MainWindow::onCaptureFinished(const QImage& image)
     raise();
     activateWindow();
 
-    // 等待视口布局完成后自适应显示，并同步引导面板的初始缩放比例
-    // 注意：fitToView 是异步执行的，缩放比例必须在 fitToView 之后读取，
+    // 等待视口布局完成后复位到默认视图（100% 缩放 + 居中），并同步引导面板的初始缩放比例
+    // 注意：resetToDefault 是异步执行的，缩放比例必须在 resetToDefault 之后读取，
     // 否则读到的是视图上一步的旧缩放值（通常为 1.0）
     QTimer::singleShot(0, this, [this]()
     {
-        m_view->fitToView();
+        m_view->resetToDefault();
+        if (m_annToolBar != nullptr)
+        {
+            // 页面布局落定后再次置顶，确保工具栏浮于标注视图之上
+            m_annToolBar->raise();
+        }
         if (m_guidePanel != nullptr)
         {
             // 切换到标注页后显式置顶并显示引导面板，避免被中央栈其他页面遮挡

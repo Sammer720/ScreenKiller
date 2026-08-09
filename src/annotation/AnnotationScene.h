@@ -14,6 +14,7 @@
 #include <QImage>
 #include <QColor>
 #include <QPointF>
+#include <QString>
 
 #include "UndoStack.h"
 
@@ -23,6 +24,7 @@ namespace SK {
 
 // 前向声明（与 items/BaseAnnotationItem.h 中的 SK::BaseAnnotationItem 对齐）
 class BaseAnnotationItem;
+class TextItem;
 
 /**
  * @brief 标注工具类型枚举
@@ -36,6 +38,7 @@ enum class Tool
     Line,         ///< 直线标注
     Pen,          ///< 自由画笔
     Highlighter, ///< 高亮画笔
+    Mosaic,       ///< 马赛克涂抹
     Text          ///< 文字标注
 };
 
@@ -56,10 +59,24 @@ public:
     explicit AnnotationScene(QObject* parent = nullptr);
 
     /**
+     * @brief 析构函数
+     *
+     * 先清空撤销栈，让 Add/Remove 命令在 QGraphicsScene 基类析构删除场景图元之前
+     * 完成图元释放，避免命令析构访问已删除图元导致的悬垂指针与双重释放。
+     */
+    ~AnnotationScene() override;
+
+    /**
      * @brief 加载背景图像
      * @param image 背景图像
      */
     void loadImage(const QImage& image);
+
+    /**
+     * @brief 获取背景图像（const 引用，避免绘制时复制大图）
+     * @return 背景图像引用
+     */
+    const QImage& backgroundImage() const;
 
     /**
      * @brief 导出当前画布（背景 + 所有标注）为单张 QImage
@@ -71,72 +88,123 @@ public:
      * @brief 切换当前工具
      * @param t 工具类型
      */
-    void setTool(Tool t) { m_tool = t; }
+    void setTool(Tool t);
 
     /**
      * @brief 获取当前工具
      * @return 工具类型
      */
-    Tool  tool() const   { return m_tool; }
+    Tool  tool() const;
 
     /**
      * @brief 设置画笔颜色
      * @param c 颜色
      */
-    void setPenColor(const QColor& c)    { m_penColor = c;    }
+    void setPenColor(const QColor& c);
 
     /**
-     * @brief 设置画笔线宽
+     * @brief 设置画笔线宽（按边界常量 clamp 到合法范围）
      * @param w 线宽
      */
-    void setPenWidth(qreal w)            { m_penWidth = w;    }
+    void setPenWidth(qreal w);
 
     /**
      * @brief 设置填充颜色
      * @param c 颜色
      */
-    void setBrushColor(const QColor& c)  { m_brushColor = c;  }
+    void setBrushColor(const QColor& c);
 
     /**
      * @brief 设置填充样式
      * @param s 填充样式
      */
-    void setBrushStyle(Qt::BrushStyle s) { m_brushStyle = s;  }
+    void setBrushStyle(Qt::BrushStyle s);
 
     /**
      * @brief 获取画笔颜色
      * @return 颜色
      */
-    QColor    penColor()    const { return m_penColor;    }
+    QColor    penColor()    const;
 
     /**
      * @brief 获取画笔线宽
      * @return 线宽
      */
-    qreal     penWidth()    const { return m_penWidth;    }
+    qreal     penWidth()    const;
 
     /**
      * @brief 获取填充颜色
      * @return 颜色
      */
-    QColor    brushColor()  const { return m_brushColor;  }
+    QColor    brushColor()  const;
 
     /**
      * @brief 获取填充样式
      * @return 填充样式
      */
-    Qt::BrushStyle brushStyle() const { return m_brushStyle; }
+    Qt::BrushStyle brushStyle() const;
+
+    /**
+     * @brief 设置文字字号（按边界常量 clamp 到合法范围）
+     * @param s 字号（pt）
+     */
+    void setFontSize(qreal s);
+
+    /**
+     * @brief 设置文字字体族
+     * @param f 字体族名称
+     */
+    void setFontFamily(const QString& f);
+
+    /**
+     * @brief 获取文字字号
+     * @return 字号（pt）
+     */
+    qreal fontSize() const;
+
+    /**
+     * @brief 获取文字字体族
+     * @return 字体族名称
+     */
+    QString fontFamily() const;
 
     /**
      * @brief 获取撤销栈
      * @return 撤销栈指针
      */
-    UndoStack* undoStack() { return m_undoStack; }
+    UndoStack* undoStack();
 
     /**
      * @brief 删除当前选中的图元
      */
     void deleteSelected();
+
+    /**
+     * @brief 清空所有标注图元并清空撤销栈（背景图元保留）
+     *
+     * 新截图加载前调用，移除场景中除背景外的全部图元（含标注图元与
+     * 其它非背景图元），并清空撤销历史，保证旧截图标注不残留。
+     */
+    void clearAllAnnotations();
+
+    /**
+     * @brief 设置荧光笔透明度（新创建的荧光笔图元使用）
+     * @param alpha 透明度（20..220）
+     */
+    void setHighlighterAlpha(int alpha);
+
+    /**
+     * @brief 提交文字图元：非空则设文字并入撤销栈，空则删除图元
+     * @param item 待提交的文字图元
+     * @param text 输入的原始文字内容
+     */
+    void commitTextItem(SK::TextItem* item, const QString& text);
+
+    /**
+     * @brief 丢弃文字图元（从场景移除并删除）
+     * @param item 待丢弃的文字图元
+     */
+    void discardTextItem(SK::TextItem* item);
 
 Q_SIGNALS:
     /**
@@ -145,6 +213,15 @@ Q_SIGNALS:
      * @param canRedo 当前是否可重做
      */
     void historyChanged(bool canUndo, bool canRedo);
+
+    /**
+     * @brief 文字编辑请求信号（文字工具点击后发射，由视图弹出内联编辑器）
+     * @param item 待编辑的空文字图元
+     */
+    void textEditRequested(SK::TextItem* item);
+
+    /// @brief 用户开始在场景上创建标注图元（用于工具栏自动收回展开的参数区）
+    void annotationStarted();
 
 protected:
     /**
@@ -199,6 +276,9 @@ private:
     qreal     m_penWidth  = 2.0;                  ///< 画笔线宽
     QColor    m_brushColor{ Qt::transparent };    ///< 填充颜色
     Qt::BrushStyle m_brushStyle = Qt::NoBrush;    ///< 填充样式
+    int       m_highlighterAlpha = 100;           ///< 荧光笔透明度（新创建图元使用）
+    qreal     m_fontSize  = 12.0;                 ///< 文字字号（pt）
+    QString   m_fontFamily = QStringLiteral("微软雅黑");  ///< 文字字体族
 
     BaseAnnotationItem* m_currentItem = nullptr;  ///< 正在创建的图元
     QPointF   m_startPos;                          ///< 创建起点

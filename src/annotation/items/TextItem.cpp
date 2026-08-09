@@ -7,9 +7,6 @@
 #include <QPainter>
 #include <QStyleOptionGraphicsItem>
 #include <QFontMetricsF>
-#include <QGraphicsSceneMouseEvent>
-#include <QInputDialog>
-#include <QLineEdit>
 #include <QGraphicsScene>
 
 namespace SK {
@@ -21,10 +18,6 @@ constexpr qreal G_TEXT_MARGIN = 4.0;
 constexpr qreal G_MIN_FONT_SIZE = 6.0;
 /// \brief 文字默认背景色（半透明黄色高亮）
 const QColor G_TEXT_BG_COLOR(255, 255, 0, 80);
-/// \brief 文字对话框标题
-const QString G_EDIT_DIALOG_TITLE = QStringLiteral("编辑文字");
-/// \brief 文字对话框输入提示
-const QString G_EDIT_DIALOG_LABEL = QStringLiteral("文字内容：");
 }
 
 TextItem::TextItem(QGraphicsItem* parent)
@@ -32,8 +25,35 @@ TextItem::TextItem(QGraphicsItem* parent)
 {
     setFlag(ItemIsSelectable, true);
     setFlag(ItemIsMovable, true);
+    // 必须发送几何变化通知，否则移动时不触发 itemChange 的
+    // ItemPositionChange 分支，位置 clamp 对文字图元无效
+    setFlag(ItemSendsGeometryChanges, true);
     setPenColor(Qt::black);
     setBrushColor(G_TEXT_BG_COLOR);
+}
+
+void TextItem::setText(const QString& text)
+{
+    m_text = text;
+    prepareGeometryChange();
+    update();
+}
+
+QString TextItem::text() const
+{
+    return m_text;
+}
+
+void TextItem::setFont(const QFont& font)
+{
+    m_font = font;
+    prepareGeometryChange();
+    update();
+}
+
+QFont TextItem::font() const
+{
+    return m_font;
 }
 
 QRectF TextItem::boundingRect() const
@@ -100,26 +120,6 @@ void TextItem::setResizeRect(const QRectF& newRect)
     }
     newFont.setPointSizeF(newSize);
     setFont(newFont);
-}
-
-void TextItem::mouseDoubleClickEvent(QGraphicsSceneMouseEvent* event)
-{
-    if (event->button() != Qt::LeftButton)
-    {
-        BaseAnnotationItem::mouseDoubleClickEvent(event);
-        return;
-    }
-
-    bool ok = false;
-    QString newText = QInputDialog::getText(
-        nullptr, G_EDIT_DIALOG_TITLE, G_EDIT_DIALOG_LABEL,
-        QLineEdit::Normal, m_text, &ok);
-
-    if (ok)
-    {
-        setText(newText);
-    }
-    event->accept();
 }
 
 } // namespace SK

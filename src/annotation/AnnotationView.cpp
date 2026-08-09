@@ -6,6 +6,7 @@
 
 #include "AnnotationScene.h"
 #include "UndoStack.h"
+#include "items/TextItem.h"
 
 #include <QWheelEvent>
 #include <QMouseEvent>
@@ -14,6 +15,8 @@
 #include <QScrollBar>
 #include <QClipboard>
 #include <QGuiApplication>
+#include <QEvent>
+#include <QLineEdit>
 
 namespace {
 
@@ -47,6 +50,10 @@ AnnotationView::AnnotationView(SK::AnnotationScene* scene, QWidget* parent)
     setTransformationAnchor(QGraphicsView::AnchorUnderMouse);
     setResizeAnchor(QGraphicsView::AnchorViewCenter);
     setBackgroundBrush(QColor(G_BG_R, G_BG_G, G_BG_B));
+
+    // 文字工具点击后由场景请求弹出内联编辑器
+    connect(m_scene, &SK::AnnotationScene::textEditRequested, this,
+            &AnnotationView::onTextEditRequested);
 }
 
 void AnnotationView::fitToView()
@@ -65,6 +72,21 @@ void AnnotationView::fitToView()
     fitInView(sceneRect, Qt::KeepAspectRatio);
     // 适配后会重建滚动范围，这里重新应用平移边界
     applyPanMargin();
+}
+
+void AnnotationView::resetToDefault()
+{
+    // 1. 复位变换矩阵到单位阵（100% 缩放）
+    resetTransform();
+    // 2. 场景有效时居中到场景中心
+    if ((m_scene != nullptr) && (!m_scene->sceneRect().isNull()))
+    {
+        centerOn(m_scene->sceneRect().center());
+    }
+    // 3. 居中后重建滚动范围，重新应用平移边界
+    applyPanMargin();
+    // 4. 通知外部监听者缩放比例已复位为 100%
+    Q_EMIT zoomChanged(transform().m11());
 }
 
 void AnnotationView::wheelEvent(QWheelEvent* event)
@@ -150,12 +172,10 @@ void AnnotationView::mouseReleaseEvent(QMouseEvent* event)
     {
         m_panning = false;
         setCursor(Qt::ArrowCursor);
-        // 中键「点击」（未发生实际拖动）：恢复视图默认状态（自适应缩放 + 居中）
+        // 中键「点击」（未发生实际拖动）：恢复视图默认状态（100% 缩放 + 居中）
         if (!m_panMoved)
         {
-            fitToView();
-            // 复位后同步缩放比例给外部监听者（如引导面板的缩放百分比显示）
-            Q_EMIT zoomChanged(transform().m11());
+            resetToDefault();
         }
         event->accept();
         return;
@@ -185,10 +205,21 @@ void AnnotationView::keyPressEvent(QKeyEvent* event)
         event->accept();
         return;
     }
-    // Delete 键删除选中图元
-    if ((event->key() == Qt::Key_Delete) && (m_scene != nullptr))
+    // Delete 双击（间隔 ≤400ms）清空所有标注；单击 Delete 不做任何事
+    if ((event->key() == Qt::Key_Delete) && (!event->isAutoRepeat())
+        && (m_scene != nullptr))
     {
-        m_scene->deleteSelected();
+        if (m_deleteTimer.isValid() && (m_deleteTimer.elapsed() <= 400))
+        {
+            // 二次按下的间隔在阈值内：判定为双击，清空所有标注并复位计时器
+            m_scene->clearAllAnnotations();
+            m_deleteTimer.invalidate();
+        }
+        else
+        {
+            // 首次按下（或距上次超过阈值）：启动/刷新计时器，等待可能的第二次按下
+            m_deleteTimer.start();
+        }
         event->accept();
         return;
     }
@@ -251,4 +282,92 @@ void AnnotationView::copyImageToClipboard()
     QGuiApplication::clipboard()->setImage(exportedImage, QClipboard::Clipboard);
     // 通知外部监听者（如主窗口）复制成功，用于触发托盘气泡提示
     Q_EMIT imageCopied();
+}
+
+void AnnotationView::onTextEditRequested(SK::TextItem* item)
+{
+    // Fail-Fast：图元无效时直接返回
+    if (item == nullptr)
+    {
+        return;
+    }
+    // 1. 若已有编辑器在编辑其他文字，先提交旧内容
+    if (m_textEditor != nullptr)
+    {
+        closeTextEditor(true);
+    }
+
+    // 2. 在视口上创建虚线框编辑器（viewport 子控件，不进场景、不参与导出）
+    auto* editor = new QLineEdit(viewport());
+    editor->setStyleSheet(QStringLiteral(
+        "border: 1px dashed #0078D4; background: rgba(255,255,255,0.92); padding: 2px;"));
+
+    // 3. 字体 WYSIWYG：按视图缩放补偿字号，保证输入所见即所得
+    QFont editorFont = item->font();
+    qreal screenFontSize = editorFont.pointSizeF() * transform().m11();
+    editorFont.setPointSizeF(qMax(6.0, screenFontSize));
+    editor->setFont(editorFont);
+
+    // 4. 定位到点击位置（场景坐标转视图坐标），宽度随缩放等比放大并设下限
+    QPoint viewPos = mapFromScene(item->scenePos());
+    editor->move(viewPos);
+    int editorWidth = qMax(120, qRound(200.0 * transform().m11()));
+    editor->setFixedWidth(editorWidth);
+
+    // 5. 连接提交/失焦信号；Esc 取消由事件过滤器处理
+    connect(editor, &QLineEdit::returnPressed, this,
+            [this]() { closeTextEditor(true); });
+    connect(editor, &QLineEdit::editingFinished, this,
+            [this]() { closeTextEditor(true); });
+    editor->installEventFilter(this);
+
+    // 6. 保存当前编辑状态并聚焦
+    m_editingTextItem = item;
+    m_textEditor = editor;
+    editor->setFocus();
+    editor->show();
+}
+
+void AnnotationView::closeTextEditor(bool commit)
+{
+    // 无编辑器或正在关闭时直接返回（布尔守卫防 editingFinished 重入）
+    if ((m_textEditor == nullptr) || (m_editorClosing))
+    {
+        return;
+    }
+    m_editorClosing = true;
+
+    // 按提交/丢弃语义处理当前编辑图元
+    if ((m_scene != nullptr) && (m_editingTextItem != nullptr))
+    {
+        if (commit)
+        {
+            m_scene->commitTextItem(m_editingTextItem, m_textEditor->text());
+        }
+        else
+        {
+            m_scene->discardTextItem(m_editingTextItem);
+        }
+    }
+
+    // 延迟销毁编辑器并清空状态（deleteLater 再触发 editingFinished 时由空指针守卫拦截）
+    m_textEditor->deleteLater();
+    m_textEditor = nullptr;
+    m_editingTextItem = nullptr;
+    m_editorClosing = false;
+}
+
+bool AnnotationView::eventFilter(QObject* watched, QEvent* event)
+{
+    // 仅处理文字编辑器的按键事件
+    if ((watched == m_textEditor) && (event->type() == QEvent::KeyPress))
+    {
+        auto* keyEvent = static_cast<QKeyEvent*>(event);
+        if (keyEvent->key() == Qt::Key_Escape)
+        {
+            closeTextEditor(false);
+            return true;
+        }
+    }
+    return QGraphicsView::eventFilter(watched, event);
 }

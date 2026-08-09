@@ -169,6 +169,7 @@ set(APP_SOURCES
     src/annotation/items/PenItem.cpp
     src/annotation/items/HighlighterItem.cpp
     src/annotation/items/TextItem.cpp
+    src/annotation/items/MosaicItem.cpp
 
     # 平台层
     src/platform/MouseWheelHook.cpp
@@ -178,6 +179,7 @@ set(APP_SOURCES
     # UI 组件
     src/ui/GuidePanel.cpp
     src/ui/ToolBar.cpp
+    src/ui/AnnotationToolBar.cpp
     src/ui/Style.cpp
 
     # 子控件
@@ -186,6 +188,7 @@ set(APP_SOURCES
     # 工具
     src/utils/ImageUtils.cpp
     src/utils/Logger.cpp
+    src/utils/MessageBox.cpp
 )
 
 set(APP_HEADERS
@@ -212,6 +215,8 @@ set(APP_HEADERS
     src/annotation/items/PenItem.h
     src/annotation/items/HighlighterItem.h
     src/annotation/items/TextItem.h
+    src/annotation/items/MosaicItem.h
+    src/annotation/AnnotationConstants.h
 
     src/platform/MouseWheelHook.h
     src/platform/KeyboardHook.h
@@ -219,6 +224,7 @@ set(APP_HEADERS
 
     src/ui/GuidePanel.h
     src/ui/ToolBar.h
+    src/ui/AnnotationToolBar.h
     src/ui/Style.h
 
     # 子控件

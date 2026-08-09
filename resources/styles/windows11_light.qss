@@ -46,7 +46,7 @@ QWidget#guidePanel QLabel {
  * 仅限定 QMessageBox 内部的标签与按钮，不影响工具栏等普通按钮。 */
 QMessageBox QLabel,
 QMessageBox QPushButton {
-    font-size: 14px;
+    font-size: 16px;
 }
 
 QWidget:disabled {
@@ -109,6 +109,15 @@ QToolButton:disabled {
     color: #B5ACBC;
     background: transparent;
     border: 1px solid transparent;
+}
+
+/* ---------- 标注工具栏工具按钮（一级/二级，正方形 36x36） ----------
+ * 覆盖通用 QToolButton 的 padding(6px 14px) 与 min-height，使 36x36 窄按钮
+ * 图标不被水平 padding 压扁；checked/hover 仍走通用紫色系。 */
+QToolButton#annotationToolButton {
+    min-width: 36px;
+    min-height: 36px;
+    padding: 0px;
 }
 
 QToolButton::menu-indicator {
@@ -339,6 +348,140 @@ QPushButton:default {
         stop:1 #6B5B95);
     color: #FFFFFF;
     border: 1px solid #5A4B85;
+}
+
+/* ---------- 滑块（标注参数区的尺寸/字号滑块） ---------- */
+QSlider#paramSlider::groove:horizontal {
+    height: 4px;
+    background: #E5D9C5;
+    border-radius: 2px;
+}
+
+QSlider#paramSlider::sub-page:horizontal {
+    background: #B5A5D1;
+    border-radius: 2px;
+}
+
+QSlider#paramSlider::handle:horizontal {
+    width: 14px;
+    height: 14px;
+    margin: -5px 0;
+    border-radius: 7px;
+    background: #8B7AB8;
+}
+
+QSlider#paramSlider::handle:horizontal:hover {
+    background: #6B5B95;
+}
+
+QSlider#paramSlider::handle:horizontal:disabled {
+    background: #C9BEDC;
+}
+
+/* ---------- 复选框（方框/圆填充开关） ---------- */
+QCheckBox {
+    spacing: 6px;
+    color: #3A3357;
+}
+
+QCheckBox::indicator {
+    width: 16px;
+    height: 16px;
+    border: 1px solid #D9CFC1;
+    border-radius: 4px;
+    background: #FFFFFF;
+}
+
+QCheckBox::indicator:hover {
+    border: 1px solid #B5A5D1;
+}
+
+QCheckBox::indicator:checked {
+    background: #8B7AB8;
+    border: 1px solid #8B7AB8;
+    image: url(:/icons/checked.png);
+}
+
+QCheckBox::indicator:disabled {
+    background: #F0EAF5;
+    border: 1px solid #E5D9C5;
+}
+
+/* ---------- 标注工具栏弹出框体控件（紫色系，与主界面一致） ----------
+ * 仅作用于标注工具栏的弹出框体（PopoutPanel，objectName = annotationPopoutPanel）
+ * 及其内部控件。v8：恢复紫色系（v7 曾误改暖棕系），滑块/勾选框与主界面视觉
+ * 统一；勾选框勾选时显示勾号图标（:/icons/checked.png）。
+ * 背景设为 transparent：框体背景由 PopoutPanel::paintEvent 自绘半透明圆角，
+ * 子控件（含二级页/参数页/行列容器）若不透明会盖住自绘背景，故需显式透出。 */
+QWidget#annotationPopoutPanel,
+QWidget#annotationPopoutPanel QLabel,
+QWidget#annotationPopoutPanel QCheckBox,
+QWidget#annotationPopoutPanel QSlider,
+QWidget#annotationParamStack,
+QWidget#annotationParamPage,
+QWidget#annotationParamRow,
+QWidget#annotationGeometryPage {
+    background: transparent;
+}
+
+QWidget#annotationPopoutPanel QLabel#sliderValueLabel {
+    color: #3A3357;
+}
+
+QWidget#annotationPopoutPanel QSlider#paramSlider::groove:horizontal {
+    height: 4px;
+    background: #D9CCEE;
+    border-radius: 2px;
+}
+
+QWidget#annotationPopoutPanel QSlider#paramSlider::sub-page:horizontal {
+    background: #B5A5D1;
+    border-radius: 2px;
+}
+
+QWidget#annotationPopoutPanel QSlider#paramSlider::handle:horizontal {
+    width: 14px;
+    height: 14px;
+    margin: -5px 0;
+    border-radius: 7px;
+    background: #8B7AB8;
+}
+
+QWidget#annotationPopoutPanel QSlider#paramSlider::handle:horizontal:hover {
+    background: #6B5B95;
+}
+
+QWidget#annotationPopoutPanel QSlider#paramSlider::handle:horizontal:disabled {
+    background: #C9BEDC;
+}
+
+QWidget#annotationPopoutPanel QCheckBox {
+    spacing: 6px;
+    color: #3A3357;
+}
+
+QWidget#annotationPopoutPanel QCheckBox::indicator {
+    width: 16px;
+    height: 16px;
+    border: 1px solid #8B7AB8;
+    border-radius: 4px;
+    background: #FFFFFF;
+}
+
+QWidget#annotationPopoutPanel QCheckBox::indicator:hover {
+    border: 1px solid #8B7AB8;
+    background: #E4D9F0;
+}
+
+QWidget#annotationPopoutPanel QCheckBox::indicator:checked {
+    background: #B5A5D1;
+    border: 1px solid #8B7AB8;
+    image: url(:/icons/checked.png);
+}
+
+QWidget#annotationPopoutPanel QCheckBox::indicator:disabled {
+    background: #F0EAF5;
+    border: 1px solid #E5D9C5;
 }
 
 /* ---------- 系统托盘提示 ---------- */

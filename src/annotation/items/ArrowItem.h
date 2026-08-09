@@ -38,19 +38,19 @@ public:
 
     /// @brief 设置线段
     /// @param line 线段几何
-    void setLine(const QLineF& line) { m_line = line; prepareGeometryChange(); update(); }
+    void setLine(const QLineF& line);
     /// @brief 获取线段
-    QLineF line() const { return m_line; }
+    QLineF line() const;
 
     /// @brief 设置是否绘制箭头
     /// @param b true=绘制箭头，false=仅直线
-    void setDrawArrow(bool b) { m_drawArrow = b; update(); }
+    void setDrawArrow(bool b);
     /// @brief 是否绘制箭头
-    bool drawArrow() const { return m_drawArrow; }
+    bool drawArrow() const;
 
     /// @brief 设置箭头尺寸（像素）
     /// @param s 箭头三角形边长
-    void setArrowSize(qreal s) { m_arrowSize = s; update(); }
+    void setArrowSize(qreal s);
 
 private:
     QLineF m_line;              ///< 线段几何

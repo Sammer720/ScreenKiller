@@ -32,9 +32,9 @@ public:
 
     /// @brief 设置透明度
     /// @param a 0..255
-    void setAlpha(int a) { m_alpha = a; update(); }
+    void setAlpha(int a);
     /// @brief 获取透明度
-    int  alpha() const   { return m_alpha; }
+    int  alpha() const;
 
 private:
     int m_alpha = 100;   ///< 透明度（0..255）
