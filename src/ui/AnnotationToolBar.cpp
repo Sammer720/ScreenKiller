@@ -47,6 +47,7 @@
 #include <QCheckBox>
 #include <QFont>
 #include <QFontComboBox>
+#include <QGridLayout>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QPainter>
@@ -75,6 +76,8 @@ constexpr int G_TOOL_ICON_SIZE = 26;
 constexpr int G_COLOR_SWATCH_SIZE = 24;
 /// 色块间距（像素）
 constexpr int G_SWATCH_SPACING = 8;
+/// 色板网格列数（常规标注色板 24 色按 6 列 × 4 行排布；荧光笔 6 色自然成一行）
+constexpr int G_COLOR_GRID_COLUMNS = 6;
 /// 滑块数值标签固定宽度（像素，避免位数变化导致滑块跳动）
 constexpr int G_SLIDER_VALUE_LABEL_WIDTH = 50;
 /// 几何一级按钮专用互斥组 id（Tool 枚举无 Geometry 值，几何是工具栏内部一级分组）
@@ -607,9 +610,12 @@ QWidget* AnnotationToolBar::createColorRow(const QVector<QColor>& palette,
     // objectName 供 QSS 作用域限定：颜色行容器背景透明，露出框体自绘暖色背景
     // （不透明容器会继承主界面背景色，盖住 PopoutPanel 自绘背景）
     rowWidget->setObjectName(QStringLiteral("annotationParamRow"));
-    auto* colorLayout = new QHBoxLayout(rowWidget);
-    // colorLayout->setContentsMargins(0, 0, 0, 0);
-    colorLayout->setSpacing(G_SWATCH_SPACING);
+    // 网格布局：色板按 6 列多行排布（常规 24 色 = 4 行 × 6 列），
+    // 避免单行平铺 24 个色块超出参数框体宽度
+    auto* colorLayout = new QGridLayout(rowWidget);
+    colorLayout->setContentsMargins(0, 0, 0, 0);
+    colorLayout->setHorizontalSpacing(G_SWATCH_SPACING);
+    colorLayout->setVerticalSpacing(G_SWATCH_SPACING);
     rowWidget->setLayout(colorLayout);
 
     // 防御性兜底：空色板直接返回空行，避免越界访问
@@ -650,7 +656,9 @@ QWidget* AnnotationToolBar::createColorRow(const QVector<QColor>& palette,
             }
         )").arg(colorName));
         colorGroup->addButton(colorButton, colorIndex);
-        colorLayout->addWidget(colorButton);
+        // 网格定位：行 = 序号 / 列数，列 = 序号 % 列数
+        colorLayout->addWidget(colorButton, colorIndex / G_COLOR_GRID_COLUMNS,
+                               colorIndex % G_COLOR_GRID_COLUMNS);
 
         // 记录与持久化颜色一致的色块；颜色不在色板时保持勾选第一个
         if (colorName.compare(storedColor.name(), Qt::CaseInsensitive) == 0)
@@ -690,10 +698,10 @@ QWidget* AnnotationToolBar::createColorRow(const QVector<QColor>& palette,
         });
     }
 
-    // 颜色行固定宽度 = 色块数 × 色块尺寸 + (色块数-1) × 间距，
-    // 防止框体裁剪最右色块（不设 stretch 时行会按内容收缩）
-    rowWidget->setFixedWidth(palette.size() * G_COLOR_SWATCH_SIZE
-                             + (palette.size() - 1) * G_SWATCH_SPACING);
+    // 颜色网格固定宽度 = 列数 × 色块尺寸 + (列数-1) × 间距，
+    // 防止框体裁剪最右列色块（不设 stretch 时网格会按内容收缩）
+    rowWidget->setFixedWidth(G_COLOR_GRID_COLUMNS * G_COLOR_SWATCH_SIZE
+                             + (G_COLOR_GRID_COLUMNS - 1) * G_SWATCH_SPACING);
 
     // 先勾选再连接信号也安全：发射走 clicked，构造期不会误发
     QAbstractButton* checkedButton = colorGroup->button(checkedIndex);

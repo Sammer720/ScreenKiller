@@ -37,12 +37,15 @@ constexpr qreal G_MAX_ABS_WIDTH = 65.0;
 constexpr int G_ANN_TOOLBAR_WIDTH = 52;
 /// 标注颜色色板（水笔 / 文字 / 几何图案共用；代码内可扩展）
 const QVector<QColor> G_ANNOTATION_COLOR_PALETTE = {
-    Qt::red, Qt::yellow, Qt::green, QColor("#3bd862"), QColor("#4A3B6B"), Qt::white
+    QColor("#D32F2F"), QColor("#000000"), QColor("#388E3C"), QColor("#FF9800"), QColor("#1976D2"), QColor("#FFFFFF"),
+    QColor("#424242"), QColor("#E64A19"), QColor("#689F38"), QColor("#FBC02D"), QColor("#0097A7"), QColor("#512DA8"),
+    QColor("#BDBDBD"), QColor("#EC407A"), QColor("#AFB42B"), QColor("#FFD54F"), QColor("#42A5F5"), QColor("#7b6ba5"),
+    QColor("#E0E0E0"), QColor("#F06292"), QColor("#66BB6A"), QColor("#FFE4B5"), QColor("#4FC3F7"), QColor("#e4d9f0")
 };
 /// 荧光笔颜色色板（半透明高亮色系，与标注色板独立）
 const QVector<QColor> G_HIGHLIGHTER_COLOR_PALETTE = {
-    QColor("#FFEB3B"), QColor("#FF6EC7"), QColor("#4FC3F7"),
-    QColor("#81C784"), QColor("#FFB74D"), QColor("#E1BEE7")
+    QColor("#FFD400"), QColor("#8BC34A"), QColor("#9575CD"),
+    QColor("#81D4FA"), QColor("#FFCC80"), QColor("#F48FB1")
 };
 
 } // namespace SK
