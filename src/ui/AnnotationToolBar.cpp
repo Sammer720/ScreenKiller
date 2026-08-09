@@ -82,7 +82,9 @@ constexpr int G_GEOMETRY_BUTTON_ID = 100;
 
 // ============================ 弹出框体常量 ============================
 /// 参数三级框体固定宽度（像素）
-constexpr int G_POPOUT_WIDTH = 200;
+/// 需容纳颜色行（6 色块 24px + 5×8px 间距 = 184px + 左右内边距）与
+/// 滑块行（滑块 + 右侧数值标签带 px/pt 单位），避免最右侧数字标签被裁剪
+constexpr int G_POPOUT_WIDTH = 232;
 /// 几何二级框体固定宽度（像素，4 个 36px 按钮竖排 + 左右内边距，与一级工具栏同宽语言）
 constexpr int G_GEOMETRY_PANEL_WIDTH = G_TOOL_BUTTON_SIZE + 2 * G_PANEL_MARGIN;
 /// 框体与工具栏/框体之间的间距（像素）
