@@ -291,8 +291,8 @@ void MainWindow::registerHotkeys()
         SK::utils::showWarning(
             this,
             tr("警告"),
-            tr("全局快捷键  Ctrl + Alt + A  已占用。\n"
-               "将无法使用快捷键截图，请关闭冲突程序后重启 ScreenKiller。"));
+            tr("存在其他进程占用快捷键 Ctrl + Alt + A 。\n"
+               "将无法使用快捷键截图，请关闭冲突进程后重启。"));
     }
 }
 

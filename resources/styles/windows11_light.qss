@@ -46,7 +46,7 @@ QWidget#guidePanel QLabel {
  * 仅限定 QMessageBox 内部的标签与按钮，不影响工具栏等普通按钮。 */
 QMessageBox QLabel,
 QMessageBox QPushButton {
-    font-size: 14px;
+    font-size: 16px;
 }
 
 QWidget:disabled {

@@ -14,6 +14,7 @@
 #include <QPointF>
 #include <QVector>
 
+#include "AnnotationConstants.h"
 #include "items/ArrowItem.h"
 #include "items/BaseAnnotationItem.h"
 #include "items/EllipseItem.h"
@@ -74,6 +75,7 @@ public:
             m_scene->removeItem(m_item);
         }
         delete m_item;
+        m_item = nullptr;
     }
 
 private:

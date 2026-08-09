@@ -72,9 +72,9 @@ constexpr int G_TOOL_BUTTON_SIZE = 36;
 /// 工具按钮图标尺寸（像素，图标资源为 32x32，略缩以留出高亮底衬）
 constexpr int G_TOOL_ICON_SIZE = 26;
 /// 色板色块按钮尺寸（像素）
-constexpr int G_COLOR_SWATCH_SIZE = 20;
+constexpr int G_COLOR_SWATCH_SIZE = 24;
 /// 色块间距（像素）
-constexpr int G_SWATCH_SPACING = 4;
+constexpr int G_SWATCH_SPACING = 8;
 /// 滑块数值标签固定宽度（像素，避免位数变化导致滑块跳动）
 constexpr int G_SLIDER_VALUE_LABEL_WIDTH = 24;
 /// 几何一级按钮专用互斥组 id（Tool 枚举无 Geometry 值，几何是工具栏内部一级分组）
@@ -608,8 +608,9 @@ QWidget* AnnotationToolBar::createColorRow(const QVector<QColor>& palette,
     // （不透明容器会继承主界面背景色，盖住 PopoutPanel 自绘背景）
     rowWidget->setObjectName(QStringLiteral("annotationParamRow"));
     auto* colorLayout = new QHBoxLayout(rowWidget);
-    colorLayout->setContentsMargins(0, 0, 0, 0);
+    // colorLayout->setContentsMargins(0, 0, 0, 0);
     colorLayout->setSpacing(G_SWATCH_SPACING);
+    rowWidget->setLayout(colorLayout);
 
     // 防御性兜底：空色板直接返回空行，避免越界访问
     if (palette.isEmpty())
@@ -638,16 +639,16 @@ QWidget* AnnotationToolBar::createColorRow(const QVector<QColor>& palette,
         // 背景色填充与圆角是该控件不可省的功能性样式，checked 边框用暖棕系
         // （#C68B4E）与标注工具栏暖色背景协调；其余控件走框体作用域 QSS
         colorButton->setStyleSheet(QStringLiteral(R"(
-QToolButton#colorSwatch {
-    background-color: %1;
-    border: 1px solid rgba(0, 0, 0, 0.25);
-    border-radius: 10px;
-    padding: 0px;
-}
-QToolButton#colorSwatch:checked {
-    border: 2px solid #C68B4E;
-}
-)").arg(colorName));
+            QToolButton#colorSwatch {
+                background-color: %1;
+                border: 1px solid rgba(0, 0, 0, 0.25);
+                border-radius: 10px;
+                padding: 0px;
+            }
+            QToolButton#colorSwatch:checked {
+                border: 2px solid #C68B4E;
+            }
+        )").arg(colorName));
         colorGroup->addButton(colorButton, colorIndex);
         colorLayout->addWidget(colorButton);
 
@@ -770,6 +771,7 @@ QWidget* AnnotationToolBar::createStrokeParam(const StrokeParamSpec& spec,
     auto* paramLayout = new QVBoxLayout(paramWidget);
     paramLayout->setContentsMargins(0, 0, 0, 0);
     paramLayout->setSpacing(G_PANEL_SPACING);
+    paramWidget->setLayout(paramLayout);
 
     // 色板类型：荧光笔色板调整独立不传播，其余（标准标注色板）传播到所有标注工具
     const bool isHighlighterPalette = (spec.palette == &SK::G_HIGHLIGHTER_COLOR_PALETTE);
@@ -870,6 +872,7 @@ QWidget* AnnotationToolBar::createTextParam(ParamHandles* handlesOut)
     auto* paramLayout = new QVBoxLayout(paramWidget);
     paramLayout->setContentsMargins(0, 0, 0, 0);
     paramLayout->setSpacing(G_PANEL_SPACING);
+    paramWidget->setLayout(paramLayout);
 
     // 字体选择（参数区上部，无标签，自带字体预览）
     auto* fontCombo = new QFontComboBox(paramWidget);

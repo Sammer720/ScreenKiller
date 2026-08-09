@@ -16,7 +16,6 @@
 #include <QPointF>
 #include <QString>
 
-#include "AnnotationConstants.h"
 #include "UndoStack.h"
 
 class QGraphicsPixmapItem;
