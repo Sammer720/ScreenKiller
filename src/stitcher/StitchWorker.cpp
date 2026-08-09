@@ -6,8 +6,10 @@
 
 #include "ImageStitcher.h"
 #include "utils/Logger.h"
-
+#include <QThreadPool>
 #include <QtConcurrent>
+#include <QtConcurrentRun>
+#include <utility>
 
 StitchWorker::StitchWorker(QObject* parent)
     : QObject(parent)
@@ -27,18 +29,17 @@ void StitchWorker::run(QVector<QImage> frames)
 
     int totalFrames = frames.size();
 
-    // 捕获 this 和 frames（所有权已转移给 lambda）
-    QtConcurrent::run([this, frames = std::move(frames), totalFrames]() mutable
+    // 使用 QThreadPool::globalInstance()->start 替代 QtConcurrent::run
+    QThreadPool::globalInstance()->start(
+        [this, frames = std::move(frames), totalFrames]() mutable 
     {
         // 单帧直接返回
-        if (frames.isEmpty() || m_cancelFlag.load())
-        {
+        if (frames.isEmpty() || m_cancelFlag.load()) {
             Q_EMIT stitchCancelled();
             return;
         }
 
-        if (frames.size() == 1)
-        {
+        if (frames.size() == 1) {
             Q_EMIT stitchFinished(frames.first());
             return;
         }
@@ -49,8 +50,7 @@ void StitchWorker::run(QVector<QImage> frames)
         SK_LOG_STI() << "工作线程拼接开始，帧数:" << totalFrames;
 
         // 取消前置检查
-        if (m_cancelFlag.load())
-        {
+        if (m_cancelFlag.load()) {
             SK_LOG_STI() << "拼接取消（调用前）";
             Q_EMIT stitchCancelled();
             return;
@@ -60,18 +60,13 @@ void StitchWorker::run(QVector<QImage> frames)
         QImage result = stitcher.stitchVertical(frames, &m_cancelFlag);
 
         // 取消后置检查
-        if (m_cancelFlag.load())
-        {
+        if (m_cancelFlag.load()) {
             SK_LOG_STI() << "拼接取消（丢弃结果）";
             Q_EMIT stitchCancelled();
-        }
-        else if (result.isNull())
-        {
+        } else if (result.isNull()) {
             SK_LOG_WARN() << "拼接结果为空";
             Q_EMIT stitchCancelled();
-        }
-        else
-        {
+        } else {
             SK_LOG_STI() << "工作线程拼接完成，结果高度:" << result.height();
             Q_EMIT stitchFinished(result);
         }
