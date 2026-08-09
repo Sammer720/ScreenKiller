@@ -26,9 +26,14 @@ constexpr qreal G_MIN_FONT_SIZE = 8.0;
 constexpr qreal G_MAX_FONT_SIZE = 72.0;
 /// 标注工具栏宽度（像素，MainWindow 与 AnnotationToolBar 共享，避免定位/构造宽度不一致）
 constexpr int G_ANN_TOOLBAR_WIDTH = 168;
-/// 预设常用色板（代码内可扩展：往此列表追加颜色实例即可）
-const QVector<QColor> G_COLOR_PALETTE = {
+/// 标注颜色色板（水笔 / 文字 / 几何图案共用；代码内可扩展）
+const QVector<QColor> G_ANNOTATION_COLOR_PALETTE = {
     Qt::red, Qt::yellow, Qt::green, QColor("#3bd862"), QColor("#4A3B6B"), Qt::white
+};
+/// 荧光笔颜色色板（半透明高亮色系，与标注色板独立）
+const QVector<QColor> G_HIGHLIGHTER_COLOR_PALETTE = {
+    QColor("#FFEB3B"), QColor("#FF6EC7"), QColor("#4FC3F7"),
+    QColor("#81C784"), QColor("#FFB74D"), QColor("#E1BEE7")
 };
 
 } // namespace SK
