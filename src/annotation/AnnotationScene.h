@@ -207,6 +207,9 @@ Q_SIGNALS:
      */
     void textEditRequested(SK::TextItem* item);
 
+    /// @brief 用户开始在场景上创建标注图元（用于工具栏自动收回展开的参数区）
+    void annotationStarted();
+
 protected:
     /**
      * @brief 鼠标按下事件：根据工具开始创建图元

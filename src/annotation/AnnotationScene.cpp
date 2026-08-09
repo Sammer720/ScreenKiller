@@ -282,6 +282,9 @@ void AnnotationScene::mousePressEvent(QGraphicsSceneMouseEvent* event)
         return;
     }
 
+    // 用户开始标注：通知外部（如工具栏收起二三级展开）
+    Q_EMIT annotationStarted();
+
     m_startPos = event->scenePos();
     beginCreateItem(m_tool, m_startPos);
 }
