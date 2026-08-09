@@ -124,6 +124,11 @@ public:
         int defaultWidth = 2;                      ///< 默认宽度（首次使用落值）
         bool withFill = false;                     ///< 是否含填充勾选（仅方框/圆）
         QString fillKey;                           ///< 填充持久化键（withFill 为 true 时有效）
+        bool withAlpha = false;                    ///< 是否含透明度渐变滑块（仅荧光笔）
+        QString alphaKey;                          ///< 透明度持久化键（withAlpha 为 true 时有效）
+        int minAlpha = 0;                          ///< 透明度滑块下限
+        int maxAlpha = 255;                        ///< 透明度滑块上限
+        int defaultAlpha = 100;                    ///< 默认透明度
     };
 
 Q_SIGNALS:
@@ -145,6 +150,9 @@ Q_SIGNALS:
     /// @brief 文字字体族变化（切换字体选择框时发射）
     /// @param family 新字体族名称
     void fontFamilyChanged(const QString& family);
+    /// @brief 荧光笔透明度变化（拖动透明度渐变滑块时发射）
+    /// @param alpha 新透明度（20..220）
+    void highlighterAlphaChanged(int alpha);
 
 protected:
     /// @brief 自绘半透明圆角暖色背景（与 GuidePanel 同设计语言）
@@ -174,6 +182,7 @@ private:
         QButtonGroup* colorGroup = nullptr;   ///< 色块互斥组（按色板索引查色块按钮）
         QSlider* widthSlider = nullptr;       ///< 宽度滑块（描边类工具 / 马赛克）
         QCheckBox* fillCheck = nullptr;       ///< 填充勾选（仅方框/圆）
+        QSlider* alphaSlider = nullptr;       ///< 透明度渐变滑块（仅荧光笔）
         QSlider* fontSizeSlider = nullptr;    ///< 字号滑块（仅文字）
         QFontComboBox* fontCombo = nullptr;   ///< 字体选择（仅文字）
     };
@@ -202,13 +211,15 @@ private:
     /// @return 颜色行容器
     QWidget* createColorRow(const QVector<QColor>& palette, const QString& settingsKey,
                             ColorPaletteKind paletteKind, QButtonGroup** colorGroupOut = nullptr);
-    /// @brief 创建尺寸滑块行（横向滑块 + 右侧数值标签，无单位文字）
+    /// @brief 创建尺寸滑块行（横向滑块 + 右侧数值标签，可选单位后缀）
     /// @param minValue 滑块下限
     /// @param maxValue 滑块上限
     /// @param initialValue 初始值（构造期由持久化状态注入）
     /// @param sliderOut 输出参数：返回滑块指针供调用方连接信号/禁用
+    /// @param unit 单位后缀（宽度滑块传 "px"，字号滑块传 "pt"，无单位传空串）
     /// @return 滑块行容器
-    QWidget* createSliderRow(int minValue, int maxValue, int initialValue, QSlider** sliderOut);
+    QWidget* createSliderRow(int minValue, int maxValue, int initialValue, QSlider** sliderOut,
+                             const QString& unit = QString());
     /// @brief 创建描边类参数区（颜色行 + 尺寸滑块，可选填充勾选）
     /// @param spec 装配规格（色板/持久化键/滑块边界/填充开关）
     /// @param handlesOut 输出参数：登记参数区控件句柄（可空）

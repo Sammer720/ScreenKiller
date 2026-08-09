@@ -74,6 +74,21 @@ void AnnotationView::fitToView()
     applyPanMargin();
 }
 
+void AnnotationView::resetToDefault()
+{
+    // 1. 复位变换矩阵到单位阵（100% 缩放）
+    resetTransform();
+    // 2. 场景有效时居中到场景中心
+    if ((m_scene != nullptr) && (!m_scene->sceneRect().isNull()))
+    {
+        centerOn(m_scene->sceneRect().center());
+    }
+    // 3. 居中后重建滚动范围，重新应用平移边界
+    applyPanMargin();
+    // 4. 通知外部监听者缩放比例已复位为 100%
+    Q_EMIT zoomChanged(transform().m11());
+}
+
 void AnnotationView::wheelEvent(QWheelEvent* event)
 {
     // 滚轮向上放大、向下缩小
@@ -157,12 +172,10 @@ void AnnotationView::mouseReleaseEvent(QMouseEvent* event)
     {
         m_panning = false;
         setCursor(Qt::ArrowCursor);
-        // 中键「点击」（未发生实际拖动）：恢复视图默认状态（自适应缩放 + 居中）
+        // 中键「点击」（未发生实际拖动）：恢复视图默认状态（100% 缩放 + 居中）
         if (!m_panMoved)
         {
-            fitToView();
-            // 复位后同步缩放比例给外部监听者（如引导面板的缩放百分比显示）
-            Q_EMIT zoomChanged(transform().m11());
+            resetToDefault();
         }
         event->accept();
         return;
@@ -192,10 +205,21 @@ void AnnotationView::keyPressEvent(QKeyEvent* event)
         event->accept();
         return;
     }
-    // Delete 键删除选中图元
-    if ((event->key() == Qt::Key_Delete) && (m_scene != nullptr))
+    // Delete 双击（间隔 ≤400ms）清空所有标注；单击 Delete 不做任何事
+    if ((event->key() == Qt::Key_Delete) && (!event->isAutoRepeat())
+        && (m_scene != nullptr))
     {
-        m_scene->deleteSelected();
+        if (m_deleteTimer.isValid() && (m_deleteTimer.elapsed() <= 400))
+        {
+            // 二次按下的间隔在阈值内：判定为双击，清空所有标注并复位计时器
+            m_scene->clearAllAnnotations();
+            m_deleteTimer.invalidate();
+        }
+        else
+        {
+            // 首次按下（或距上次超过阈值）：启动/刷新计时器，等待可能的第二次按下
+            m_deleteTimer.start();
+        }
         event->accept();
         return;
     }

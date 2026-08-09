@@ -227,6 +227,8 @@ void MainWindow::setupUi()
             m_scene, &AnnotationScene::setFontSize);
     connect(m_annToolBar, &AnnotationToolBar::fontFamilyChanged,
             m_scene, &AnnotationScene::setFontFamily);
+    connect(m_annToolBar, &AnnotationToolBar::highlighterAlphaChanged,
+            m_scene, &AnnotationScene::setHighlighterAlpha);
 
     // 用户开始标注时自动收回工具栏二三级展开
     connect(m_scene, &AnnotationScene::annotationStarted,
@@ -522,12 +524,12 @@ void MainWindow::onCaptureFinished(const QImage& image)
     raise();
     activateWindow();
 
-    // 等待视口布局完成后自适应显示，并同步引导面板的初始缩放比例
-    // 注意：fitToView 是异步执行的，缩放比例必须在 fitToView 之后读取，
+    // 等待视口布局完成后复位到默认视图（100% 缩放 + 居中），并同步引导面板的初始缩放比例
+    // 注意：resetToDefault 是异步执行的，缩放比例必须在 resetToDefault 之后读取，
     // 否则读到的是视图上一步的旧缩放值（通常为 1.0）
     QTimer::singleShot(0, this, [this]()
     {
-        m_view->fitToView();
+        m_view->resetToDefault();
         if (m_annToolBar != nullptr)
         {
             // 页面布局落定后再次置顶，确保工具栏浮于标注视图之上

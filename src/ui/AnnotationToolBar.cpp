@@ -82,7 +82,7 @@ constexpr int G_GEOMETRY_BUTTON_ID = 100;
 
 // ============================ 弹出框体常量 ============================
 /// 参数三级框体固定宽度（像素）
-constexpr int G_POPOUT_WIDTH = 180;
+constexpr int G_POPOUT_WIDTH = 200;
 /// 几何二级框体固定宽度（像素，4 个 36px 按钮竖排 + 左右内边距，与一级工具栏同宽语言）
 constexpr int G_GEOMETRY_PANEL_WIDTH = G_TOOL_BUTTON_SIZE + 2 * G_PANEL_MARGIN;
 /// 框体与工具栏/框体之间的间距（像素）
@@ -118,6 +118,7 @@ const QString G_KEY_PEN_COLOR         = QStringLiteral("annotation/pen/color"); 
 const QString G_KEY_PEN_WIDTH         = QStringLiteral("annotation/pen/width");      ///< 水笔宽度
 const QString G_KEY_HL_COLOR          = QStringLiteral("annotation/highlighter/color"); ///< 荧光笔颜色
 const QString G_KEY_HL_WIDTH          = QStringLiteral("annotation/highlighter/width"); ///< 荧光笔宽度
+const QString G_KEY_HL_ALPHA          = QStringLiteral("annotation/highlighter/alpha"); ///< 荧光笔透明度
 const QString G_KEY_LINE_COLOR        = QStringLiteral("annotation/line/color");     ///< 直线颜色
 const QString G_KEY_LINE_WIDTH        = QStringLiteral("annotation/line/width");     ///< 直线宽度
 const QString G_KEY_ARROW_COLOR       = QStringLiteral("annotation/arrow/color");    ///< 箭头颜色
@@ -136,6 +137,9 @@ const QString G_KEY_MOSAIC_WIDTH      = QStringLiteral("annotation/mosaic/width"
 // ============================ 默认值（首次使用落值） ============================
 constexpr int G_DEFAULT_PEN_WIDTH     = 2;    ///< 水笔/直线/箭头/方框/圆默认宽度
 constexpr int G_DEFAULT_HL_WIDTH      = 18;   ///< 荧光笔默认宽度
+constexpr int G_HL_ALPHA_MIN          = 20;   ///< 荧光笔透明度下限
+constexpr int G_HL_ALPHA_MAX          = 220;  ///< 荧光笔透明度上限
+constexpr int G_DEFAULT_HL_ALPHA      = 100;  ///< 荧光笔默认透明度
 constexpr int G_DEFAULT_FONT_SIZE     = 12;   ///< 文字默认字号（pt）
 constexpr int G_DEFAULT_MOSAIC_WIDTH  = 20;   ///< 马赛克默认宽度
 const QString G_DEFAULT_FONT_FAMILY   = QStringLiteral("微软雅黑");  ///< 文字默认字体族
@@ -156,11 +160,12 @@ const AnnotationToolBar::StrokeParamSpec G_PEN_SPEC = {
     static_cast<int>(SK::G_MIN_PEN_WIDTH), static_cast<int>(SK::G_MAX_PEN_WIDTH),
     G_DEFAULT_PEN_WIDTH, false, QString()
 };
-/// @brief 荧光笔参数规格：荧光笔色板 + 5~40 宽度
+/// @brief 荧光笔参数规格：荧光笔色板 + 5~40 宽度 + 20~220 透明度渐变滑块
 const AnnotationToolBar::StrokeParamSpec G_HIGHLIGHTER_SPEC = {
     &SK::G_HIGHLIGHTER_COLOR_PALETTE, G_KEY_HL_COLOR, G_KEY_HL_WIDTH,
     static_cast<int>(SK::G_MIN_HIGHLIGHT_WIDTH), static_cast<int>(SK::G_MAX_HIGHLIGHT_WIDTH),
-    G_DEFAULT_HL_WIDTH, false, QString()
+    G_DEFAULT_HL_WIDTH, false, QString(),
+    true, G_KEY_HL_ALPHA, G_HL_ALPHA_MIN, G_HL_ALPHA_MAX, G_DEFAULT_HL_ALPHA
 };
 /// @brief 直线参数规格：标注色板 + 1~30 宽度
 const AnnotationToolBar::StrokeParamSpec G_LINE_SPEC = {
@@ -351,6 +356,71 @@ protected:
         path.addRoundedRect(rect(), G_CORNER_RADIUS, G_CORNER_RADIUS);
         painter.fillPath(path, QColor(G_BG_R, G_BG_G, G_BG_B, G_BG_A));
     }
+};
+
+/// @brief 荧光笔透明度渐变滑块：轨道为「透明→不透明」当前色渐变，无标签无刻度
+///
+/// 轨道背景用 qlineargradient 从 rgba(r,g,b,0) 渐变到 rgba(r,g,b,255)，
+/// 并随 baseColor 更新；手柄用紫色圆点样式。仅作样式呈现，不提供文字刻度。
+class ColorAlphaSlider : public QSlider
+{
+public:
+    /// @brief 构造函数
+    /// @param baseColor 渐变基础色（荧光笔当前色）
+    /// @param min 滑块下限
+    /// @param max 滑块上限
+    /// @param value 初始值
+    /// @param parent 父控件
+    ColorAlphaSlider(const QColor& baseColor, int min, int max, int value, QWidget* parent)
+        : QSlider(Qt::Horizontal, parent), m_baseColor(baseColor)
+    {
+        setObjectName(QStringLiteral("alphaSlider"));
+        setRange(min, max);
+        setValue(value);
+        // 无刻度、无标签
+        setTickPosition(QSlider::NoTicks);
+        updateGradientStyle();
+    }
+
+    /// @brief 更新渐变基础色并重刷轨道样式
+    /// @param baseColor 新基础色（荧光笔当前色）
+    void setBaseColor(const QColor& baseColor)
+    {
+        if (m_baseColor == baseColor)
+        {
+            return;
+        }
+        m_baseColor = baseColor;
+        updateGradientStyle();
+    }
+
+private:
+    /// @brief 依据当前基础色生成轨道「透明→不透明」渐变与紫色圆点手柄样式
+    void updateGradientStyle()
+    {
+        const int red   = m_baseColor.red();
+        const int green = m_baseColor.green();
+        const int blue  = m_baseColor.blue();
+        setStyleSheet(QStringLiteral(
+            "QSlider#alphaSlider::groove:horizontal {"
+            "  height: 6px;"
+            "  background: qlineargradient(x1:0, y1:0, x2:1, y2:0,"
+            "    stop:0 rgba(%1,%2,%3,0), stop:1 rgba(%1,%2,%3,255));"
+            "  border-radius: 3px;"
+            "}"
+            "QSlider#alphaSlider::handle:horizontal {"
+            "  width: 16px; height: 16px; margin: -5px 0;"
+            "  border-radius: 8px;"
+            "  background: #8B7AB8;"
+            "  border: 2px solid #FFFFFF;"
+            "}"
+            "QSlider#alphaSlider::handle:horizontal:hover {"
+            "  background: #6B5B95;"
+            "}"
+        ).arg(red).arg(green).arg(blue));
+    }
+
+    QColor m_baseColor;  ///< 渐变基础色（荧光笔当前色）
 };
 
 } // namespace
@@ -619,6 +689,11 @@ QToolButton#colorSwatch:checked {
         });
     }
 
+    // 颜色行固定宽度 = 色块数 × 色块尺寸 + (色块数-1) × 间距，
+    // 防止框体裁剪最右色块（不设 stretch 时行会按内容收缩）
+    rowWidget->setFixedWidth(palette.size() * G_COLOR_SWATCH_SIZE
+                             + (palette.size() - 1) * G_SWATCH_SPACING);
+
     // 先勾选再连接信号也安全：发射走 clicked，构造期不会误发
     QAbstractButton* checkedButton = colorGroup->button(checkedIndex);
     if (checkedButton != nullptr)
@@ -633,7 +708,7 @@ QToolButton#colorSwatch:checked {
 }
 
 QWidget* AnnotationToolBar::createSliderRow(int minValue, int maxValue, int initialValue,
-                                            QSlider** sliderOut)
+                                            QSlider** sliderOut, const QString& unit)
 {
     auto* rowWidget = new QWidget(this);
     // objectName 供 QSS 作用域限定：滑块行容器背景透明，露出框体自绘暖色背景
@@ -649,20 +724,37 @@ QWidget* AnnotationToolBar::createSliderRow(int minValue, int maxValue, int init
     // 滑块轨道/进度/手柄样式走全局 QSS（QSlider#paramSlider 规则），
     // 与主界面控件统一视觉语言，不再携带私有内联样式
 
-    // 数值标签无单位文字，固定宽度避免位数变化导致滑块跳动；颜色走全局 QWidget
-    auto* valueLabel = new QLabel(QString::number(initialValue), rowWidget);
+    // 数值标签：无单位时纯数字，有单位时「数值 单位」（如 "12 px"）；
+    // 固定宽度按最长的最大值文本计算，避免单位/位数变化导致滑块跳动
+    const QString unitSuffix = unit.isEmpty() ? QString()
+                                              : (QStringLiteral(" ") + unit);
+    QString labelText = QString::number(initialValue);
+    if (!unit.isEmpty())
+    {
+        labelText = QStringLiteral("%1 %2").arg(initialValue).arg(unit);
+    }
+    auto* valueLabel = new QLabel(labelText, rowWidget);
     valueLabel->setObjectName(QStringLiteral("sliderValueLabel"));
     valueLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-    valueLabel->setFixedWidth(G_SLIDER_VALUE_LABEL_WIDTH);
+    const QString sampleText = QString::number(maxValue) + unitSuffix;
+    const int computedWidth = valueLabel->fontMetrics().horizontalAdvance(sampleText);
+    valueLabel->setFixedWidth(qMax(G_SLIDER_VALUE_LABEL_WIDTH, computedWidth));
 
     rowLayout->addWidget(slider, 1);
     rowLayout->addWidget(valueLabel);
 
     // 数值标签随滑块同步（以标签为上下文对象，标签销毁即自动断开）
     connect(slider, &QSlider::valueChanged, valueLabel,
-            [valueLabel](int value)
+            [valueLabel, unit](int value)
     {
-        valueLabel->setText(QString::number(value));
+        if (unit.isEmpty())
+        {
+            valueLabel->setText(QString::number(value));
+        }
+        else
+        {
+            valueLabel->setText(QStringLiteral("%1 %2").arg(value).arg(unit));
+        }
     });
 
     *sliderOut = slider;
@@ -690,11 +782,11 @@ QWidget* AnnotationToolBar::createStrokeParam(const StrokeParamSpec& spec,
     paramLayout->addWidget(createColorRow(*(spec.palette), spec.colorKey, paletteKind,
                                           &colorGroup));
 
-    // 尺寸滑块行（滑块 + 右侧数值），范围按规格边界
+    // 尺寸滑块行（滑块 + 右侧数值带 px 单位），范围按规格边界
     const int storedWidth = loadInt(spec.widthKey, spec.defaultWidth);
     QSlider* widthSlider = nullptr;
     paramLayout->addWidget(createSliderRow(spec.minWidth, spec.maxWidth, storedWidth,
-                                           &widthSlider));
+                                           &widthSlider, QStringLiteral("px")));
 
     // 拖动滑块：发射宽度变化 + 写回持久化
     connect(widthSlider, &QSlider::valueChanged, this,
@@ -722,12 +814,47 @@ QWidget* AnnotationToolBar::createStrokeParam(const StrokeParamSpec& spec,
         paramLayout->addWidget(fillCheck);
     }
 
+    // 荧光笔透明度渐变滑块：宽度滑块之后，无标签，轨道随当前色「透明→不透明」渐变
+    QSlider* alphaSlider = nullptr;
+    if (spec.withAlpha)
+    {
+        const QColor baseColor = loadColor(spec.colorKey, spec.palette->first());
+        const int storedAlpha = loadInt(spec.alphaKey, spec.defaultAlpha);
+        auto* alphaSliderWidget = new ColorAlphaSlider(baseColor, spec.minAlpha, spec.maxAlpha,
+                                                       storedAlpha, paramWidget);
+        alphaSlider = alphaSliderWidget;
+        paramLayout->addWidget(alphaSliderWidget);
+
+        // 拖动：发射透明度变化 + 写回持久化
+        connect(alphaSlider, &QSlider::valueChanged, this,
+                [this, spec](int value)
+        {
+            Q_EMIT highlighterAlphaChanged(value);
+            m_settings->setValue(spec.alphaKey, value);
+        });
+
+        // 切换荧光笔颜色：同步滑块轨道渐变基础色
+        if (colorGroup != nullptr)
+        {
+            connect(colorGroup, &QButtonGroup::idClicked, this,
+                    [this, spec, alphaSliderWidget](int colorIndex)
+            {
+                const QVector<QColor>& alphaPalette = *(spec.palette);
+                if ((colorIndex >= 0) && (colorIndex < alphaPalette.size()))
+                {
+                    alphaSliderWidget->setBaseColor(alphaPalette.at(colorIndex));
+                }
+            });
+        }
+    }
+
     // 登记参数区控件句柄，供 syncParamControlsToTool 按工具刷新显示
     if (handlesOut != nullptr)
     {
         handlesOut->colorGroup = colorGroup;
         handlesOut->widthSlider = widthSlider;
         handlesOut->fillCheck = fillCheck;
+        handlesOut->alphaSlider = alphaSlider;
     }
 
     // 初始隐藏：装入参数框体页栈后由页栈管理可见性
@@ -757,12 +884,13 @@ QWidget* AnnotationToolBar::createTextParam(ParamHandles* handlesOut)
     paramLayout->addWidget(createColorRow(SK::G_ANNOTATION_COLOR_PALETTE, G_KEY_TEXT_COLOR,
                                           ColorPaletteKind::Annotation, &colorGroup));
 
-    // 字号滑块（8~72），范围按边界常量
+    // 字号滑块（8~72，右侧数值带 pt 单位），范围按边界常量
     const int storedFontSize = loadInt(G_KEY_TEXT_FONT_SIZE, G_DEFAULT_FONT_SIZE);
     QSlider* fontSizeSlider = nullptr;
     paramLayout->addWidget(createSliderRow(static_cast<int>(SK::G_MIN_FONT_SIZE),
                                            static_cast<int>(SK::G_MAX_FONT_SIZE),
-                                           storedFontSize, &fontSizeSlider));
+                                           storedFontSize, &fontSizeSlider,
+                                           QStringLiteral("pt")));
 
     // 拖动字号滑块：发射字号变化 + 写回持久化
     connect(fontSizeSlider, &QSlider::valueChanged, this,
@@ -802,12 +930,13 @@ QWidget* AnnotationToolBar::createMosaicParam(ParamHandles* handlesOut)
     paramLayout->setContentsMargins(0, 0, 0, 0);
     paramLayout->setSpacing(G_PANEL_SPACING);
 
-    // 马赛克取背景色，无颜色设置，仅尺寸滑块（10~60）
+    // 马赛克取背景色，无颜色设置，仅尺寸滑块（10~60，右侧数值带 px 单位）
     const int storedWidth = loadInt(G_KEY_MOSAIC_WIDTH, G_DEFAULT_MOSAIC_WIDTH);
     QSlider* mosaicSlider = nullptr;
     paramLayout->addWidget(createSliderRow(static_cast<int>(SK::G_MIN_MOSAIC_WIDTH),
                                            static_cast<int>(SK::G_MAX_MOSAIC_WIDTH),
-                                           storedWidth, &mosaicSlider));
+                                           storedWidth, &mosaicSlider,
+                                           QStringLiteral("px")));
 
     // 拖动滑块：发射宽度变化 + 写回持久化
     connect(mosaicSlider, &QSlider::valueChanged, this,
@@ -941,6 +1070,12 @@ void AnnotationToolBar::loadToolParamsToScene(SK::Tool tool)
             const bool storedFilled = loadBool(toolSpec->fillKey, false);
             Q_EMIT brushStyleChanged(storedFilled ? Qt::SolidPattern : Qt::NoBrush);
         }
+        // 荧光笔：透明度渐变滑块同步场景
+        if (toolSpec->withAlpha)
+        {
+            Q_EMIT highlighterAlphaChanged(
+                loadInt(toolSpec->alphaKey, toolSpec->defaultAlpha));
+        }
         return;
     }
 
@@ -997,6 +1132,16 @@ void AnnotationToolBar::syncParamControlsToTool(SK::Tool tool)
             const QSignalBlocker fillBlocker(handles.fillCheck);
             handles.fillCheck->setChecked(storedFilled);
             handles.widthSlider->setEnabled((!storedFilled));
+        }
+        // 荧光笔：透明度滑块值与轨道渐变基础色随存储值/当前色同步
+        if ((toolSpec->withAlpha) && (handles.alphaSlider != nullptr))
+        {
+            const QSignalBlocker alphaBlocker(handles.alphaSlider);
+            handles.alphaSlider->setValue(
+                loadInt(toolSpec->alphaKey, toolSpec->defaultAlpha));
+            auto* alphaSliderWidget = static_cast<ColorAlphaSlider*>(handles.alphaSlider);
+            alphaSliderWidget->setBaseColor(
+                loadColor(toolSpec->colorKey, toolSpec->palette->first()));
         }
         return;
     }
@@ -1098,10 +1243,22 @@ void AnnotationToolBar::onLevel1Clicked(int groupId)
 
     // 具体工具：写回默认工具、切换工具并装载该工具实例参数
     const SK::Tool tool = static_cast<SK::Tool>(groupId);
+    const int targetPage = pageIndexOfTool(tool);
+
+    // 启闭循环：参数框体已创建、可见且正显示本工具参数页时，
+    // 仅收起框体（含几何框体），不重复切换工具、不重复发射信号
+    if ((m_paramPanel != nullptr) && (m_paramPanel->isVisible())
+        && (m_paramStack != nullptr) && (m_paramStack->currentIndex() == targetPage))
+    {
+        hideParamPanel();
+        hideGeometryPanel();
+        return;
+    }
+
     m_currentSceneTool = tool;
     m_settings->setValue(G_KEY_DEFAULT_TOOL, toolNameOf(tool));
     hideGeometryPanel();
-    showParamPanel(pageIndexOfTool(tool));
+    showParamPanel(targetPage);
     // 装载该工具 QSettings 存储参数到场景 + 同步参数区显示
     loadToolParamsToScene(tool);
     syncParamControlsToTool(tool);

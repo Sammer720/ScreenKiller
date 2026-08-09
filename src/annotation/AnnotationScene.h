@@ -181,6 +181,20 @@ public:
     void deleteSelected();
 
     /**
+     * @brief 清空所有标注图元并清空撤销栈（背景图元保留）
+     *
+     * 新截图加载前调用，移除场景中除背景外的全部图元（含标注图元与
+     * 其它非背景图元），并清空撤销历史，保证旧截图标注不残留。
+     */
+    void clearAllAnnotations();
+
+    /**
+     * @brief 设置荧光笔透明度（新创建的荧光笔图元使用）
+     * @param alpha 透明度（20..220）
+     */
+    void setHighlighterAlpha(int alpha);
+
+    /**
      * @brief 提交文字图元：非空则设文字并入撤销栈，空则删除图元
      * @param item 待提交的文字图元
      * @param text 输入的原始文字内容
@@ -263,6 +277,7 @@ private:
     qreal     m_penWidth  = 2.0;                  ///< 画笔线宽
     QColor    m_brushColor{ Qt::transparent };    ///< 填充颜色
     Qt::BrushStyle m_brushStyle = Qt::NoBrush;    ///< 填充样式
+    int       m_highlighterAlpha = 100;           ///< 荧光笔透明度（新创建图元使用）
     qreal     m_fontSize  = 12.0;                 ///< 文字字号（pt）
     QString   m_fontFamily = QStringLiteral("微软雅黑");  ///< 文字字体族
 

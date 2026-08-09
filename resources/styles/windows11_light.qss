@@ -111,6 +111,15 @@ QToolButton:disabled {
     border: 1px solid transparent;
 }
 
+/* ---------- 标注工具栏工具按钮（一级/二级，正方形 36x36） ----------
+ * 覆盖通用 QToolButton 的 padding(6px 14px) 与 min-height，使 36x36 窄按钮
+ * 图标不被水平 padding 压扁；checked/hover 仍走通用紫色系。 */
+QToolButton#annotationToolButton {
+    min-width: 36px;
+    min-height: 36px;
+    padding: 0px;
+}
+
 QToolButton::menu-indicator {
     image: url(:/icons/drop_down.png);
     subcontrol-position: right bottom;

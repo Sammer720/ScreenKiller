@@ -16,6 +16,7 @@
 
 #include <QGraphicsView>
 #include <QPointer>
+#include <QElapsedTimer>
 
 class QLineEdit;
 class QEvent;
@@ -44,6 +45,14 @@ public:
      * @brief 自适应缩放至场景尺寸
      */
     void fitToView();
+
+    /**
+     * @brief 复位到默认视图：100% 缩放并居中到场景中心
+     *
+     * 新截图加载后或中键点击（未拖动）时调用，使视图回到最自然的浏览状态。
+     * 复位成功后发射 zoomChanged（缩放因子回到 1.0）。
+     */
+    void resetToDefault();
 
 Q_SIGNALS:
     /// @brief 视图缩放比例变化
@@ -140,4 +149,5 @@ private:
     QPointer<QLineEdit> m_textEditor;             ///< 文字内联编辑器（viewport 子控件，不进场景）
     SK::TextItem* m_editingTextItem = nullptr;    ///< 正在编辑的文字图元（生命周期由场景/关闭流程保证）
     bool m_editorClosing = false;                 ///< 编辑器关闭守卫（防 editingFinished 重入）
+    QElapsedTimer m_deleteTimer;                  ///< Delete 双击计时器（间隔 ≤400ms 判定双击清空）
 };

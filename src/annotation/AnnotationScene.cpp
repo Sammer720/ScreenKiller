@@ -208,6 +208,8 @@ AnnotationScene::~AnnotationScene()
 
 void AnnotationScene::loadImage(const QImage& image)
 {
+    // 新截图加载前清空旧标注图元与撤销栈，避免旧截图图素残留到新截图
+    clearAllAnnotations();
     m_bgImage = image;
     // 首次加载时创建背景图元
     if (m_bgItem == nullptr)
@@ -261,6 +263,30 @@ void AnnotationScene::deleteSelected()
             delete item;
         }
     }
+}
+
+void AnnotationScene::clearAllAnnotations()
+{
+    // 收集当前全部图元后逐个删除，跳过背景图元（背景由 loadImage 重设）
+    const QList<QGraphicsItem*> allItems = items();
+    for (QGraphicsItem* item : allItems)
+    {
+        if ((item == m_bgItem) || (item == nullptr))
+        {
+            continue;
+        }
+        removeItem(item);
+        delete item;
+    }
+    // 若正在创建的图元也被删除，复位创建状态指针，防止后续悬垂访问
+    m_currentItem = nullptr;
+    // 清空撤销历史：先前的撤销/重做命令不再有效
+    m_undoStack->clear();
+}
+
+void AnnotationScene::setHighlighterAlpha(int alpha)
+{
+    m_highlighterAlpha = alpha;
 }
 
 // -----------------------------------------------------------------------------
@@ -341,8 +367,12 @@ void AnnotationScene::beginCreateItem(Tool t, const QPointF& pos)
         item = new PenItem();
         break;
     case Tool::Highlighter:
-        item = new HighlighterItem();
+    {
+        auto* highlighterItem = new HighlighterItem();
+        highlighterItem->setAlpha(m_highlighterAlpha);
+        item = highlighterItem;
         break;
+    }
     case Tool::Mosaic:
         item = new MosaicItem();
         break;
