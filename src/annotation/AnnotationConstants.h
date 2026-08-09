@@ -25,7 +25,9 @@ constexpr qreal G_MAX_MOSAIC_WIDTH = 60.0;
 constexpr qreal G_MIN_FONT_SIZE = 8.0;
 constexpr qreal G_MAX_FONT_SIZE = 72.0;
 /// 标注工具栏宽度（像素，MainWindow 与 AnnotationToolBar 共享，避免定位/构造宽度不一致）
-constexpr int G_ANN_TOOLBAR_WIDTH = 168;
+/// v4 仅 5 个 36px 图标按钮竖列（水笔/荧光笔/几何/文字/马赛克），
+/// 宽度 = 按钮 36 + 左右内边距 8×2 = 52（168 为 v3 手风琴遗留，已收窄）
+constexpr int G_ANN_TOOLBAR_WIDTH = 52;
 /// 标注颜色色板（水笔 / 文字 / 几何图案共用；代码内可扩展）
 const QVector<QColor> G_ANNOTATION_COLOR_PALETTE = {
     Qt::red, Qt::yellow, Qt::green, QColor("#3bd862"), QColor("#4A3B6B"), Qt::white
