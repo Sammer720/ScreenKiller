@@ -188,6 +188,7 @@ set(APP_SOURCES
     # 工具
     src/utils/ImageUtils.cpp
     src/utils/Logger.cpp
+    src/utils/MessageBox.cpp
 )
 
 set(APP_HEADERS

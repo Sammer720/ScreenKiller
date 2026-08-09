@@ -42,6 +42,66 @@ constexpr qreal G_HANDLE_BORDER_WIDTH = 1.0;
 
 namespace SK {
 
+BaseAnnotationItem::BaseAnnotationItem(QGraphicsItem* parent)
+    : QGraphicsItem(parent)
+{
+}
+
+void BaseAnnotationItem::setPenColor(const QColor& color)
+{
+    m_pen.setColor(color);
+    update();
+}
+
+void BaseAnnotationItem::setPenWidth(qreal width)
+{
+    m_pen.setWidthF(width);
+    update();
+}
+
+void BaseAnnotationItem::setPenStyle(Qt::PenStyle style)
+{
+    m_pen.setStyle(style);
+    update();
+}
+
+void BaseAnnotationItem::setBrushColor(const QColor& color)
+{
+    m_brush.setColor(color);
+    update();
+}
+
+void BaseAnnotationItem::setBrushStyle(Qt::BrushStyle style)
+{
+    m_brush.setStyle(style);
+    update();
+}
+
+QColor BaseAnnotationItem::penColor() const
+{
+    return m_pen.color();
+}
+
+qreal BaseAnnotationItem::penWidth() const
+{
+    return m_pen.widthF();
+}
+
+Qt::PenStyle BaseAnnotationItem::penStyle() const
+{
+    return m_pen.style();
+}
+
+QColor BaseAnnotationItem::brushColor() const
+{
+    return m_brush.color();
+}
+
+Qt::BrushStyle BaseAnnotationItem::brushStyle() const
+{
+    return m_brush.style();
+}
+
 void BaseAnnotationItem::paint(QPainter* painter,
                                const QStyleOptionGraphicsItem* option,
                                QWidget* widget)

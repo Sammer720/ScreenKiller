@@ -22,6 +22,18 @@ RectangleItem::RectangleItem(QGraphicsItem* parent)
     setFlag(ItemSendsGeometryChanges, true);
 }
 
+void RectangleItem::setRect(const QRectF& rect)
+{
+    m_rect = rect;
+    prepareGeometryChange();
+    update();
+}
+
+QRectF RectangleItem::rect() const
+{
+    return m_rect;
+}
+
 QRectF RectangleItem::boundingRect() const
 {
     // 半线宽 + 边距，确保边框不被裁剪

@@ -29,6 +29,35 @@ ArrowItem::ArrowItem(QGraphicsItem* parent)
     setFlag(ItemSendsGeometryChanges, true);
 }
 
+void ArrowItem::setLine(const QLineF& line)
+{
+    m_line = line;
+    prepareGeometryChange();
+    update();
+}
+
+QLineF ArrowItem::line() const
+{
+    return m_line;
+}
+
+void ArrowItem::setDrawArrow(bool drawArrow)
+{
+    m_drawArrow = drawArrow;
+    update();
+}
+
+bool ArrowItem::drawArrow() const
+{
+    return m_drawArrow;
+}
+
+void ArrowItem::setArrowSize(qreal arrowSize)
+{
+    m_arrowSize = arrowSize;
+    update();
+}
+
 QRectF ArrowItem::boundingRect() const
 {
     // 半线宽 + 箭头尺寸 + 边距

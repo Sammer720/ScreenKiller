@@ -7,6 +7,7 @@
 #include <QGraphicsPixmapItem>
 #include <QGraphicsSceneMouseEvent>
 #include <QFont>
+#include <QtGlobal>
 #include <QLineF>
 #include <QPainter>
 #include <QPixmap>
@@ -110,6 +111,86 @@ private:
 } // namespace
 
 namespace SK {
+
+const QImage& AnnotationScene::backgroundImage() const
+{
+    return m_bgImage;
+}
+
+void AnnotationScene::setTool(Tool t)
+{
+    m_tool = t;
+}
+
+Tool AnnotationScene::tool() const
+{
+    return m_tool;
+}
+
+void AnnotationScene::setPenColor(const QColor& c)
+{
+    m_penColor = c;
+}
+
+void AnnotationScene::setPenWidth(qreal w)
+{
+    m_penWidth = qBound(G_MIN_PEN_WIDTH, w, G_MAX_PEN_WIDTH);
+}
+
+void AnnotationScene::setBrushColor(const QColor& c)
+{
+    m_brushColor = c;
+}
+
+void AnnotationScene::setBrushStyle(Qt::BrushStyle s)
+{
+    m_brushStyle = s;
+}
+
+QColor AnnotationScene::penColor() const
+{
+    return m_penColor;
+}
+
+qreal AnnotationScene::penWidth() const
+{
+    return m_penWidth;
+}
+
+QColor AnnotationScene::brushColor() const
+{
+    return m_brushColor;
+}
+
+Qt::BrushStyle AnnotationScene::brushStyle() const
+{
+    return m_brushStyle;
+}
+
+void AnnotationScene::setFontSize(qreal s)
+{
+    m_fontSize = qBound(G_MIN_FONT_SIZE, s, G_MAX_FONT_SIZE);
+}
+
+void AnnotationScene::setFontFamily(const QString& f)
+{
+    m_fontFamily = f;
+}
+
+qreal AnnotationScene::fontSize() const
+{
+    return m_fontSize;
+}
+
+QString AnnotationScene::fontFamily() const
+{
+    return m_fontFamily;
+}
+
+UndoStack* AnnotationScene::undoStack()
+{
+    return m_undoStack;
+}
 
 AnnotationScene::AnnotationScene(QObject* parent) : QGraphicsScene(parent)
 {

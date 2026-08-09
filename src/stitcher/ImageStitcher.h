@@ -60,19 +60,19 @@ public:
      * @brief 设置模板高度
      * @param h 模板高度（像素）
      */
-    void setStripHeight(int h)         { m_stripHeight = h; }
+    void setStripHeight(int h);
 
     /**
      * @brief 设置最小置信度阈值
      * @param c 置信度 [0,1]
      */
-    void setMinConfidence(double c)    { m_minConfidence = c; }
+    void setMinConfidence(double c);
 
     /**
      * @brief 设置搜索范围比例
      * @param r 搜索范围 [0,1]，从下一帧顶部起算
      */
-    void setSearchRatio(double r)      { m_searchRatio = r; }
+    void setSearchRatio(double r);
 
     /**
      * @brief 垂直拼接一系列帧

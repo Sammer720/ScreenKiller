@@ -77,7 +77,7 @@ public:
      * @brief 获取背景图像（const 引用，避免绘制时复制大图）
      * @return 背景图像引用
      */
-    const QImage& backgroundImage() const { return m_bgImage; }
+    const QImage& backgroundImage() const;
 
     /**
      * @brief 导出当前画布（背景 + 所有标注）为单张 QImage
@@ -89,91 +89,91 @@ public:
      * @brief 切换当前工具
      * @param t 工具类型
      */
-    void setTool(Tool t) { m_tool = t; }
+    void setTool(Tool t);
 
     /**
      * @brief 获取当前工具
      * @return 工具类型
      */
-    Tool  tool() const   { return m_tool; }
+    Tool  tool() const;
 
     /**
      * @brief 设置画笔颜色
      * @param c 颜色
      */
-    void setPenColor(const QColor& c)    { m_penColor = c;    }
+    void setPenColor(const QColor& c);
 
     /**
      * @brief 设置画笔线宽（按边界常量 clamp 到合法范围）
      * @param w 线宽
      */
-    void setPenWidth(qreal w) { m_penWidth = qBound(G_MIN_PEN_WIDTH, w, G_MAX_PEN_WIDTH); }
+    void setPenWidth(qreal w);
 
     /**
      * @brief 设置填充颜色
      * @param c 颜色
      */
-    void setBrushColor(const QColor& c)  { m_brushColor = c;  }
+    void setBrushColor(const QColor& c);
 
     /**
      * @brief 设置填充样式
      * @param s 填充样式
      */
-    void setBrushStyle(Qt::BrushStyle s) { m_brushStyle = s;  }
+    void setBrushStyle(Qt::BrushStyle s);
 
     /**
      * @brief 获取画笔颜色
      * @return 颜色
      */
-    QColor    penColor()    const { return m_penColor;    }
+    QColor    penColor()    const;
 
     /**
      * @brief 获取画笔线宽
      * @return 线宽
      */
-    qreal     penWidth()    const { return m_penWidth;    }
+    qreal     penWidth()    const;
 
     /**
      * @brief 获取填充颜色
      * @return 颜色
      */
-    QColor    brushColor()  const { return m_brushColor;  }
+    QColor    brushColor()  const;
 
     /**
      * @brief 获取填充样式
      * @return 填充样式
      */
-    Qt::BrushStyle brushStyle() const { return m_brushStyle; }
+    Qt::BrushStyle brushStyle() const;
 
     /**
      * @brief 设置文字字号（按边界常量 clamp 到合法范围）
      * @param s 字号（pt）
      */
-    void setFontSize(qreal s) { m_fontSize = qBound(G_MIN_FONT_SIZE, s, G_MAX_FONT_SIZE); }
+    void setFontSize(qreal s);
 
     /**
      * @brief 设置文字字体族
      * @param f 字体族名称
      */
-    void setFontFamily(const QString& f) { m_fontFamily = f; }
+    void setFontFamily(const QString& f);
 
     /**
      * @brief 获取文字字号
      * @return 字号（pt）
      */
-    qreal fontSize() const { return m_fontSize; }
+    qreal fontSize() const;
 
     /**
      * @brief 获取文字字体族
      * @return 字体族名称
      */
-    QString fontFamily() const { return m_fontFamily; }
+    QString fontFamily() const;
 
     /**
      * @brief 获取撤销栈
      * @return 撤销栈指针
      */
-    UndoStack* undoStack() { return m_undoStack; }
+    UndoStack* undoStack();
 
     /**
      * @brief 删除当前选中的图元

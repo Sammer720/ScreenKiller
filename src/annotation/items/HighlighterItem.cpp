@@ -32,6 +32,17 @@ HighlighterItem::HighlighterItem(QGraphicsItem* parent)
     setPenWidth(G_HIGHLIGHT_WIDTH);
 }
 
+void HighlighterItem::setAlpha(int alpha)
+{
+    m_alpha = alpha;
+    update();
+}
+
+int HighlighterItem::alpha() const
+{
+    return m_alpha;
+}
+
 void HighlighterItem::paintContent(QPainter* painter,
                                    const QStyleOptionGraphicsItem* option,
                                    QWidget* widget)

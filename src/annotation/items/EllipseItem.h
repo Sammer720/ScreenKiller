@@ -36,9 +36,9 @@ public:
 
     /// @brief 设置外接矩形
     /// @param r 外接矩形（局部坐标系）
-    void setRect(const QRectF& r) { m_rect = r; prepareGeometryChange(); update(); }
+    void setRect(const QRectF& r);
     /// @brief 获取外接矩形
-    QRectF rect() const { return m_rect; }
+    QRectF rect() const;
 
 private:
     QRectF m_rect;   ///< 椭圆外接矩形

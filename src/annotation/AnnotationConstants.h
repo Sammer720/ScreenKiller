@@ -28,7 +28,7 @@ constexpr qreal G_MAX_FONT_SIZE = 72.0;
 constexpr int G_ANN_TOOLBAR_WIDTH = 168;
 /// 预设常用色板（代码内可扩展：往此列表追加颜色实例即可）
 const QVector<QColor> G_COLOR_PALETTE = {
-    Qt::red, Qt::yellow, Qt::green, Qt::blue, Qt::black, Qt::white
+    Qt::red, Qt::yellow, Qt::green, QColor("#3bd862"), QColor("#4A3B6B"), Qt::white
 };
 
 } // namespace SK

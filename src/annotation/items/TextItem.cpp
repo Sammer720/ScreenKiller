@@ -32,6 +32,30 @@ TextItem::TextItem(QGraphicsItem* parent)
     setBrushColor(G_TEXT_BG_COLOR);
 }
 
+void TextItem::setText(const QString& text)
+{
+    m_text = text;
+    prepareGeometryChange();
+    update();
+}
+
+QString TextItem::text() const
+{
+    return m_text;
+}
+
+void TextItem::setFont(const QFont& font)
+{
+    m_font = font;
+    prepareGeometryChange();
+    update();
+}
+
+QFont TextItem::font() const
+{
+    return m_font;
+}
+
 QRectF TextItem::boundingRect() const
 {
     QFontMetricsF fm(m_font);

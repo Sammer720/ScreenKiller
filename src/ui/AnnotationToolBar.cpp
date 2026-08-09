@@ -374,13 +374,15 @@ QWidget* AnnotationToolBar::createColorRow(QWidget* parent)
     {
         const QColor paletteColor = SK::G_COLOR_PALETTE.at(colorIndex);
         auto* colorButton = new QToolButton(rowWidget);
+        auto colorName = paletteColor.name();
+
         colorButton->setCheckable(true);
         colorButton->setObjectName(QStringLiteral("colorSwatch"));
         colorButton->setFixedSize(G_COLOR_SWATCH_SIZE, G_COLOR_SWATCH_SIZE);
-        colorButton->setToolTip(paletteColor.name());
+        colorButton->setToolTip(colorName);
         // 色块背景色由按钮级样式表填充（QToolButton 无内置背景色属性）
         colorButton->setStyleSheet(
-            QStringLiteral("background-color: %1;").arg(paletteColor.name()));
+            QStringLiteral("background-color: %1;").arg(colorName));
         colorGroup->addButton(colorButton, colorIndex);
         colorLayout->addWidget(colorButton);
 

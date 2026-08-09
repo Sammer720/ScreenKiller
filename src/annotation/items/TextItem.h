@@ -42,15 +42,15 @@ public:
 
     /// @brief 设置文字内容
     /// @param t 文字
-    void setText(const QString& t) { m_text = t; prepareGeometryChange(); update(); }
+    void setText(const QString& t);
     /// @brief 获取文字内容
-    QString text() const { return m_text; }
+    QString text() const;
 
     /// @brief 设置字体
     /// @param f 字体
-    void setFont(const QFont& f) { m_font = f; prepareGeometryChange(); update(); }
+    void setFont(const QFont& f);
     /// @brief 获取字体
-    QFont font() const { return m_font; }
+    QFont font() const;
 
 private:
     QString m_text;   ///< 文字内容

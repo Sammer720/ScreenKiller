@@ -47,6 +47,21 @@ constexpr int G_FIXED_GAP_TOLERANCE = 5;
 ImageStitcher::ImageStitcher() = default;
 ImageStitcher::~ImageStitcher() = default;
 
+void ImageStitcher::setStripHeight(int h)
+{
+    m_stripHeight = h;
+}
+
+void ImageStitcher::setMinConfidence(double c)
+{
+    m_minConfidence = c;
+}
+
+void ImageStitcher::setSearchRatio(double r)
+{
+    m_searchRatio = r;
+}
+
 // -----------------------------------------------------------------------------
 // QImage <-> cv::Mat
 // -----------------------------------------------------------------------------
