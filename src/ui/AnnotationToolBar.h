@@ -1,10 +1,10 @@
 /**
  * \file AnnotationToolBar.h
- * \brief 标注工具栏 v4：一级工具竖列 + 右侧弹出独立框体（二三级内容）
+ * \brief 标注工具栏 v5：一级工具竖列 + 左侧弹出独立框体（二三级内容）
  *
  * 设计说明：
  *   - 工具栏本体仅 5 个一级按钮竖排（水笔 / 荧光笔 / 几何 / 文字 / 马赛克），
- *     不含任何内联展开区；几何二级图形页与各工具参数页统一放入工具栏右侧的
+ *     不含任何内联展开区；几何二级图形页与各工具参数页统一放入工具栏左侧的
  *     独立弹出框体（m_centralStack 子控件悬浮，GuidePanel 同款半透明圆角自绘）。
  *   - 按钮 checked/hover 走全局 QSS 紫色系（#E4D9F0 hover / #B5A5D1 checked），
  *     工具栏不再携带私有 QSS；所有按钮配置 tooltip（调用
@@ -14,7 +14,7 @@
  *     荧光笔用 G_HIGHLIGHTER_COLOR_PALETTE。
  *   - QSettings 持久化（annotation/ 前缀）：点一级工具写 defaultTool、
  *     点几何二级写 defaultGeometry，各图形参数调整即写回；restoreDefaultTool()
- *     截屏完成时从配置恢复并弹出参数框体。
+ *     截屏完成时从配置恢复工具/参数状态并同步场景，但不弹框体（仅点击弹开）。
  *   - 标注开始自动收回：collapseExpanded() 隐藏弹出框体（保留当前工具与高亮）。
  *
  * 本组件只负责自身 UI、状态持久化与信号发射，悬浮定位与业务接线由外部完成。
@@ -43,7 +43,7 @@ namespace SK {
 class ToolButton;   ///< 前向声明（实现文件再包含完整定义）
 
 /**
- * @brief 标注工具栏（右侧悬浮）——一级工具竖列 + 右侧弹出参数框体
+ * @brief 标注工具栏（右侧悬浮）——一级工具竖列 + 左侧弹出参数框体
  */
 class AnnotationToolBar : public QWidget
 {
@@ -63,7 +63,8 @@ public:
      *
      * Line/Arrow/Rectangle/Ellipse 会自动展开「几何一级 + 二级图形 + 该图形参数页」；
      * Select 等非工具栏工具则收起弹出框体。同步完成后发射 toolChanged，
-     * 保证外部场景工具与工具栏状态一致（截屏完成恢复默认工具即依赖此信号）。
+     * 保证外部场景工具与工具栏状态一致。截屏完成恢复默认工具不走本路径
+     * （restoreDefaultTool 只恢复状态不弹框体）。
      *
      * @param tool 具体场景工具（Pen/Highlighter/Line/Arrow/Rectangle/Ellipse/Text/Mosaic）
      */
@@ -80,7 +81,8 @@ public:
      * @brief 从 QSettings 恢复默认工具（截屏完成时调用）
      *
      * 读取 annotation/defaultTool + annotation/defaultGeometry，
-     * 经 setCurrentTool 应用并同步外部场景（同时弹出对应参数框体）。
+     * 恢复工具/参数状态并同步外部场景（发射 toolChanged + 当前参数信号），
+     * 但不弹框体——二三级框体仅由用户点击一级/二级按钮时弹开。
      */
     void restoreDefaultTool();
 
@@ -191,8 +193,13 @@ private:
     void showPopoutPanel(int pageIndex);
     /// @brief 隐藏弹出框体（保留当前工具与高亮）
     void hidePopoutPanel();
-    /// @brief 按工具栏当前位置重新定位弹出框体（贴着工具栏右侧，越界时左移钳制）
+    /// @brief 按工具栏当前位置重新定位弹出框体（贴着工具栏左侧，过窄时钳到右侧兜底）
     void updatePopoutGeometry();
+
+    /// @brief 按当前场景工具读取 QSettings 存储值补发参数信号（同步外部场景）
+    void applyCurrentParametersToScene();
+    /// @brief 按当前几何图形读取 QSettings 存储值补发几何参数信号（applyCurrentParametersToScene 辅助）
+    void applyGeometryParametersToScene();
 
     /// @brief 读取持久化颜色（无记录或非法时回退默认色）
     /// @param settingsKey 颜色持久化键

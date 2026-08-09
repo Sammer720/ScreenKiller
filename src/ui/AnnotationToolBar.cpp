@@ -1,18 +1,20 @@
 /**
  * \file AnnotationToolBar.cpp
- * \brief AnnotationToolBar v4 实现：一级工具竖列、右侧弹出框体与信号发射
+ * \brief AnnotationToolBar v5 实现：一级工具竖列、左侧弹出框体与信号发射
  *
  * 实现要点：
  *   1. 工具栏本体背景不依赖 QSS，在 paintEvent 自绘半透明圆角暖色矩形
  *      （WA_TranslucentBackground + QPainterPath），与 GuidePanel 同设计语言；
  *      按钮 checked/hover 走全局 QSS 紫色系，工具栏不再携带私有 QSS。
- *   2. 二三级内容（几何二级页 + 各工具参数页）统一放入工具栏右侧的独立弹出
+ *   2. 二三级内容（几何二级页 + 各工具参数页）统一放入工具栏左侧的独立弹出
  *      框体（m_popoutStack 页栈），框体同样自绘背景，作为父控件
- *      （m_centralStack）子控件悬浮显示，定位紧贴工具栏右侧。
+ *      （m_centralStack）子控件悬浮显示，定位紧贴工具栏左侧。
  *   3. 持久化：点一级写 annotation/defaultTool、点几何二级写
  *      annotation/defaultGeometry，参数调整（选色/拖滑块/勾填充/改字体）即写回；
  *      构造期只读不写，先设置默认状态再 connect，避免误发信号。
  *   4. 弹出框体懒创建：首次显示时才 new，避免工具栏独立使用时产生多余控件。
+ *   5. 弹开时机：框体仅由用户点击一级/二级按钮时弹出；restoreDefaultTool()
+ *      截屏完成时只恢复工具/参数状态并补发射参数信号同步场景，不弹框体。
  */
 #include "AnnotationToolBar.h"
 
@@ -373,7 +375,7 @@ void AnnotationToolBar::setupUi()
     });
 
     // 应用持久化的默认工具（仅 UI 高亮，不发射信号、不弹框体；
-    // 截屏完成时 restoreDefaultTool 会再同步并弹出对应参数框体）
+    // 截屏完成时 restoreDefaultTool 会再同步参数并同步场景，框体只由点击弹开）
     const QString defaultToolName = m_settings->value(G_KEY_DEFAULT_TOOL,
                                                       QStringLiteral("pen")).toString();
     if (defaultToolName.compare(QStringLiteral("geometry"), Qt::CaseInsensitive) == 0)
@@ -405,6 +407,9 @@ SK::ToolButton* AnnotationToolBar::createLevel1Button(const QString& iconResourc
     toolButton->setObjectName(QStringLiteral("annotationToolButton"));
     toolButton->setAutoRaise(true);
     toolButton->setFixedSize(G_TOOL_BUTTON_SIZE, G_TOOL_BUTTON_SIZE);
+    // 覆盖全局 QSS 的 padding(6px 14px)——36px 窄按钮会被水平 padding 压扁图标；
+    // 仅覆盖 padding，checked/hover 仍走全局紫色系
+    toolButton->setStyleSheet(QStringLiteral("padding: 0px;"));
 
     // tooltip：ToolButton 默认拦截 QEvent::ToolTip，显式放行后 setToolTip 生效
     toolButton->setToolTip(toolTipText);
@@ -427,6 +432,9 @@ SK::ToolButton* AnnotationToolBar::createLevel2Button(const QString& iconResourc
     toolButton->setObjectName(QStringLiteral("annotationToolButton"));
     toolButton->setAutoRaise(true);
     toolButton->setFixedSize(G_TOOL_BUTTON_SIZE, G_TOOL_BUTTON_SIZE);
+    // 覆盖全局 QSS 的 padding(6px 14px)——36px 窄按钮会被水平 padding 压扁图标；
+    // 仅覆盖 padding，checked/hover 仍走全局紫色系
+    toolButton->setStyleSheet(QStringLiteral("padding: 0px;"));
 
     // tooltip：ToolButton 默认拦截 QEvent::ToolTip，显式放行后 setToolTip 生效
     toolButton->setToolTip(toolTipText);
@@ -738,15 +746,104 @@ void AnnotationToolBar::restoreDefaultTool()
 {
     const QString defaultToolName = m_settings->value(G_KEY_DEFAULT_TOOL,
                                                       QStringLiteral("pen")).toString();
+    // 仅恢复工具/参数状态并同步外部场景，不弹框体（二三级只由用户点击弹开）
     if (defaultToolName.compare(QStringLiteral("geometry"), Qt::CaseInsensitive) == 0)
     {
-        // 默认工具为几何组：按持久化的默认图形展开
+        // 默认工具为几何组：按持久化的默认图形恢复高亮与状态
         const QString geometryName = m_settings->value(G_KEY_DEFAULT_GEOMETRY,
                                                        QStringLiteral("line")).toString();
-        setCurrentTool(shapeFromName(geometryName));
+        const SK::Tool geometryTool = shapeFromName(geometryName);
+        m_currentGeometryShape = geometryTool;
+        m_currentSceneTool = geometryTool;
+        m_geometryButton->setChecked(true);
+        setLevel2Checked(geometryTool);
+        Q_EMIT toolChanged(geometryTool);
+    }
+    else
+    {
+        const SK::Tool tool = toolFromName(defaultToolName);
+        m_currentSceneTool = tool;
+        setLevel1Checked(tool);
+        Q_EMIT toolChanged(tool);
+    }
+
+    // 同步场景参数：构造期控件 setValue 发射的信号早于 MainWindow connect，
+    // 场景仍持默认值，此处按当前工具读取 QSettings 存储值补发
+    applyCurrentParametersToScene();
+}
+
+void AnnotationToolBar::applyCurrentParametersToScene()
+{
+    const SK::Tool currentTool = m_currentSceneTool;
+    switch (currentTool)
+    {
+    case SK::Tool::Pen:
+        Q_EMIT penColorChanged(loadColor(G_KEY_PEN_COLOR, SK::G_ANNOTATION_COLOR_PALETTE.first()));
+        Q_EMIT penWidthChanged(static_cast<qreal>(loadInt(G_KEY_PEN_WIDTH, G_DEFAULT_PEN_WIDTH)));
+        break;
+    case SK::Tool::Highlighter:
+        Q_EMIT penColorChanged(loadColor(G_KEY_HL_COLOR, SK::G_HIGHLIGHTER_COLOR_PALETTE.first()));
+        Q_EMIT penWidthChanged(static_cast<qreal>(loadInt(G_KEY_HL_WIDTH, G_DEFAULT_HL_WIDTH)));
+        break;
+    case SK::Tool::Line:
+    case SK::Tool::Arrow:
+    case SK::Tool::Rectangle:
+    case SK::Tool::Ellipse:
+        // 几何类：先按当前几何图形确定形状，再取该形状参数（颜色 + 宽度，方框/圆补填充）
+        applyGeometryParametersToScene();
+        break;
+    case SK::Tool::Text:
+        Q_EMIT penColorChanged(loadColor(G_KEY_TEXT_COLOR, SK::G_ANNOTATION_COLOR_PALETTE.first()));
+        Q_EMIT fontSizeChanged(static_cast<qreal>(loadInt(G_KEY_TEXT_FONT_SIZE, G_DEFAULT_FONT_SIZE)));
+        Q_EMIT fontFamilyChanged(
+            m_settings->value(G_KEY_TEXT_FONT_FAMILY, G_DEFAULT_FONT_FAMILY).toString());
+        break;
+    case SK::Tool::Mosaic:
+        Q_EMIT penWidthChanged(static_cast<qreal>(loadInt(G_KEY_MOSAIC_WIDTH, G_DEFAULT_MOSAIC_WIDTH)));
+        break;
+    default:
+        // Select 等非参数工具：无参数可同步
+        break;
+    }
+}
+
+void AnnotationToolBar::applyGeometryParametersToScene()
+{
+    // 按当前几何图形取对应装配规格（与 createStrokeParam 共用同一规格常量）
+    const StrokeParamSpec* shapeSpec = nullptr;
+    switch (m_currentGeometryShape)
+    {
+    case SK::Tool::Line:
+        shapeSpec = &G_LINE_SPEC;
+        break;
+    case SK::Tool::Arrow:
+        shapeSpec = &G_ARROW_SPEC;
+        break;
+    case SK::Tool::Rectangle:
+        shapeSpec = &G_RECT_SPEC;
+        break;
+    case SK::Tool::Ellipse:
+        shapeSpec = &G_ELLIPSE_SPEC;
+        break;
+    default:
+        break;
+    }
+    if (shapeSpec == nullptr)
+    {
         return;
     }
-    setCurrentTool(toolFromName(defaultToolName));
+
+    const qreal storedWidth = static_cast<qreal>(loadInt(shapeSpec->widthKey,
+                                                         shapeSpec->defaultWidth));
+    Q_EMIT penColorChanged(loadColor(shapeSpec->colorKey, shapeSpec->palette->first()));
+    Q_EMIT penWidthChanged(storedWidth);
+
+    // 方框/圆：填充开关同步场景（未勾选时显式复位为 NoBrush，避免残留上次填充）
+    if (shapeSpec->withFill)
+    {
+        const bool storedFilled = loadBool(shapeSpec->fillKey, false);
+        Q_EMIT brushStyleChanged(storedFilled ? Qt::SolidPattern : Qt::NoBrush);
+    }
 }
 
 void AnnotationToolBar::onLevel1Clicked(int groupId)
@@ -897,18 +994,17 @@ void AnnotationToolBar::updatePopoutGeometry()
         return;
     }
 
-    // 默认贴着工具栏右侧弹出（父子坐标系：pos() 即工具栏在父控件中的位置）
-    const int panelX = pos().x() + width() + G_POPOUT_OFFSET;
+    // 工具栏贴右缘，二三级框体在其左侧弹开（避免与右侧工具栏/窗口边缘挤在一处）
+    const int panelX = pos().x() - G_POPOUT_WIDTH - G_POPOUT_OFFSET;
     const int panelY = pos().y();
 
-    // 防御性钳制：工具栏贴父控件右边缘时，框体可能越界，左移保证完整可见
+    // 防御性钳制：窗口过窄时框体可能越出左缘，钳到工具栏右侧（窄窗口兜底）
     int finalX = panelX;
     if (parentWidget() != nullptr)
     {
-        const int hostRight = parentWidget()->width() - G_POPOUT_OFFSET;
-        if ((finalX + m_popoutPanel->width()) > hostRight)
+        if (finalX < 0)
         {
-            finalX = qMax(0, hostRight - m_popoutPanel->width());
+            finalX = pos().x() + width() + G_POPOUT_OFFSET;
         }
     }
     m_popoutPanel->move(finalX, panelY);
