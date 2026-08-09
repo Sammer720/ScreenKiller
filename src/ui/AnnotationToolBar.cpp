@@ -1,6 +1,6 @@
 /**
  * \file AnnotationToolBar.cpp
- * \brief AnnotationToolBar v6 实现：一级工具竖列、左侧双框体级联与信号发射
+* \brief AnnotationToolBar v8 实现：一级工具竖列、左侧双框体级联与信号发射
  *
  * 实现要点：
  *   1. 工具栏本体背景不依赖 QSS，在 paintEvent 自绘半透明圆角暖色矩形
@@ -8,8 +8,12 @@
  *      按钮 checked/hover 走全局 QSS 紫色系，工具栏不再携带私有 QSS。
  *   2. 二三级拆为两个独立弹出框体（PopoutPanel 自绘背景）向左级联：
  *      m_geometryPanel 几何二级框体（4 个图形按钮竖向）贴工具栏左侧；
- *      m_paramPanel 参数三级框体（各工具参数页页栈）在几何框体左侧再弹出；
- *      无几何展开时参数框体贴工具栏左侧。选二级图形时几何框体保持显示。
+ *      m_paramPanel 参数三级框体（各工具参数页）在几何框体左侧再弹出；
+ *      无几何展开时参数框体贴工具栏左侧。三级参数框体只由点击二级框体中
+ *      的图形按钮时弹出（唯一入口）；点击一级几何按钮只开/关二级框体。
+ *   3. 一级几何启闭循环：点击几何→弹二级框体；再次点击几何→关二级（连同
+ *      三级一起关）。每次点击几何按钮都把当前工具切换为当前默认几何工具
+ *      （来源 QSettings annotation/defaultGeometry），而非上一个使用的工具。
  *   3. 切换工具即装载参数：onLevel1Clicked / onLevel2Clicked / setCurrentTool
  *      切换后调用 loadToolParamsToScene() 读取该工具 QSettings 存储值补发全部
  *      参数信号（颜色/宽度/填充/字号/字体），使场景立即装载该工具实例参数；
@@ -20,15 +24,18 @@
  *      annotation/defaultGeometry，参数调整（选色/拖滑块/勾填充/改字体）即写回；
  *      构造期只读不写，先设置默认状态再 connect，避免误发信号。
  *   6. 弹出框体懒创建：首次显示时才 new，避免工具栏独立使用时产生多余控件。
- *   7. 弹开时机：框体仅由用户点击一级/二级按钮时弹出；restoreDefaultTool()
- *      截屏完成时只恢复工具/参数状态并补发射参数信号同步场景，不弹框体。
+ *   7. 弹开时机：几何二级框体仅由点击一级几何按钮开/关（启闭循环），三级
+ *      参数框体仅由点击二级图形按钮弹出；restoreDefaultTool() 截屏完成时
+ *      只恢复工具/参数状态并补发射参数信号同步场景，不弹框体。
  *   8. 框体定位（v7）：updatePanelGeometry 用成员标志 m_geometryVisible 级联
  *      定位（不依赖 isVisible()，规避框体首次创建尚未 show 时的可见性误判）；
  *      工具栏 pos() 未就绪时按父容器宽度推导贴右缘兜底，防止跳最左；点几何而
  *      当前工具非几何时隐藏残留参数框体，防止二三级重叠。
- *   9. 框体内控件（v7）：滑块/勾选框/数值标签/色块继承标注工具栏暖色系
- *      （#FFE4B5 背景上的暖棕），经 PopoutPanel 的 objectName
- *      （annotationPopoutPanel）由 QSS 作用域限定，不覆盖主界面紫色系控件。
+ *   9. 框体内控件（v8）：滑块/勾选框/数值标签走主界面紫色系（滑块 groove
+ *      #D9CCEE / 手柄 #8B7AB8，勾选框白底紫边、勾选 #B5A5D1 + 勾号图标），
+ *      经 PopoutPanel 的 objectName（annotationPopoutPanel）由 QSS 作用域
+ *      限定，不覆盖主界面紫色系控件；二级页 / 参数页 / 行列容器背景显式
+ *      透明，露出框体自绘暖色背景，避免继承主界面背景导致色块差异。
  */
 #include "AnnotationToolBar.h"
 
@@ -527,6 +534,9 @@ QWidget* AnnotationToolBar::createColorRow(const QVector<QColor>& palette,
                                            QButtonGroup** colorGroupOut)
 {
     auto* rowWidget = new QWidget(this);
+    // objectName 供 QSS 作用域限定：颜色行容器背景透明，露出框体自绘暖色背景
+    // （不透明容器会继承主界面背景色，盖住 PopoutPanel 自绘背景）
+    rowWidget->setObjectName(QStringLiteral("annotationParamRow"));
     auto* colorLayout = new QHBoxLayout(rowWidget);
     colorLayout->setContentsMargins(0, 0, 0, 0);
     colorLayout->setSpacing(G_SWATCH_SPACING);
@@ -626,6 +636,8 @@ QWidget* AnnotationToolBar::createSliderRow(int minValue, int maxValue, int init
                                             QSlider** sliderOut)
 {
     auto* rowWidget = new QWidget(this);
+    // objectName 供 QSS 作用域限定：滑块行容器背景透明，露出框体自绘暖色背景
+    rowWidget->setObjectName(QStringLiteral("annotationParamRow"));
     auto* rowLayout = new QHBoxLayout(rowWidget);
     rowLayout->setContentsMargins(0, 0, 0, 0);
     rowLayout->setSpacing(G_PANEL_SPACING);
@@ -819,6 +831,8 @@ QWidget* AnnotationToolBar::createMosaicParam(ParamHandles* handlesOut)
 QWidget* AnnotationToolBar::createGeometryPage()
 {
     auto* pageWidget = new QWidget(this);
+    // objectName 供 QSS 作用域限定：几何二级页背景透明，露出框体自绘暖色背景
+    pageWidget->setObjectName(QStringLiteral("annotationGeometryPage"));
     auto* pageLayout = new QVBoxLayout(pageWidget);
     pageLayout->setContentsMargins(0, 0, 0, 0);
     pageLayout->setSpacing(G_PANEL_SPACING);
@@ -1054,24 +1068,30 @@ void AnnotationToolBar::onLevel1Clicked(int groupId)
 {
     if (groupId == G_GEOMETRY_BUTTON_ID)
     {
-        // 几何：写回默认工具「几何组」，不发射 toolChanged（尚未确定具体图形）。
-        // 弹几何二级框体；已选中具体图形时同时在其左侧弹参数三级框体（快捷调参）。
+        // 每次点击几何按钮，都把当前工具切换为当前默认几何工具：
+        // 默认几何图形取自 QSettings annotation/defaultGeometry（点二级时写回），
+        // 保证「点几何即用默认图形」，而非沿用上一个正在使用的工具
+        const QString geometryName = m_settings->value(
+            G_KEY_DEFAULT_GEOMETRY, QStringLiteral("line")).toString();
+        m_currentGeometryShape = shapeFromName(geometryName);
+        m_currentSceneTool = m_currentGeometryShape;
         m_settings->setValue(G_KEY_DEFAULT_TOOL, QStringLiteral("geometry"));
-        showGeometryPanel();
-        if (isGeometryTool(m_currentSceneTool))
+        setLevel2Checked(m_currentGeometryShape);
+        loadToolParamsToScene(m_currentGeometryShape);
+        Q_EMIT toolChanged(m_currentGeometryShape);
+
+        if (m_geometryVisible)
         {
-            // 先确保页索引表已填充（懒创建），避免首次查表命中兜底索引弹错参数页
-            ensureParamPanel();
-            showParamPanel(m_shapePageIndex.value(
-                static_cast<int>(m_currentSceneTool), G_PAGE_SHAPE_BASE));
-            syncParamControlsToTool(m_currentSceneTool);
+            // 启闭循环：二级框体已显示 → 关闭二级（连同三级一起关）
+            hideGeometryPanel();
+            hideParamPanel();
         }
         else
         {
-            // 当前工具非几何：仅弹几何二级框体，同时隐藏残留的参数三级框体
-            // （上一非几何工具的参数页），避免参数框体与几何框体在工具栏左侧重叠
+            // 开二级（不弹三级）：三级参数框体仅由点击二级按钮时弹出（唯一入口），
+            // 同时隐藏可能残留的非几何参数框体，避免与几何二级框体重叠
+            showGeometryPanel();
             hideParamPanel();
-            setLevel2Checked(m_currentGeometryShape);
         }
         return;
     }

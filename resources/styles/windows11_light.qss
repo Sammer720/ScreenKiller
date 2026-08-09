@@ -390,6 +390,7 @@ QCheckBox::indicator:hover {
 QCheckBox::indicator:checked {
     background: #8B7AB8;
     border: 1px solid #8B7AB8;
+    image: url(:/icons/checked.png);
 }
 
 QCheckBox::indicator:disabled {
@@ -397,32 +398,35 @@ QCheckBox::indicator:disabled {
     border: 1px solid #E5D9C5;
 }
 
-/* ---------- 标注工具栏弹出框体控件（暖色系，继承标注工具栏 #FFE4B5 背景） ----------
+/* ---------- 标注工具栏弹出框体控件（紫色系，与主界面一致） ----------
  * 仅作用于标注工具栏的弹出框体（PopoutPanel，objectName = annotationPopoutPanel）
- * 及其内部控件，配色继承工具栏暖色背景（#FFE4B5）用暖棕系，不覆盖主界面紫色系控件。
+ * 及其内部控件。v8：恢复紫色系（v7 曾误改暖棕系），滑块/勾选框与主界面视觉
+ * 统一；勾选框勾选时显示勾号图标（:/icons/checked.png）。
  * 背景设为 transparent：框体背景由 PopoutPanel::paintEvent 自绘半透明圆角，
- * 子控件若不透明会盖住自绘背景，故需显式透出。 */
+ * 子控件（含二级页/参数页/行列容器）若不透明会盖住自绘背景，故需显式透出。 */
 QWidget#annotationPopoutPanel,
 QWidget#annotationPopoutPanel QLabel,
 QWidget#annotationPopoutPanel QCheckBox,
 QWidget#annotationPopoutPanel QSlider,
 QWidget#annotationParamStack,
-QWidget#annotationParamPage {
+QWidget#annotationParamPage,
+QWidget#annotationParamRow,
+QWidget#annotationGeometryPage {
     background: transparent;
 }
 
 QWidget#annotationPopoutPanel QLabel#sliderValueLabel {
-    color: #8B5A2B;
+    color: #3A3357;
 }
 
 QWidget#annotationPopoutPanel QSlider#paramSlider::groove:horizontal {
     height: 4px;
-    background: #ECD9AE;
+    background: #D9CCEE;
     border-radius: 2px;
 }
 
 QWidget#annotationPopoutPanel QSlider#paramSlider::sub-page:horizontal {
-    background: #C68B4E;
+    background: #B5A5D1;
     border-radius: 2px;
 }
 
@@ -431,42 +435,44 @@ QWidget#annotationPopoutPanel QSlider#paramSlider::handle:horizontal {
     height: 14px;
     margin: -5px 0;
     border-radius: 7px;
-    background: #8B5A2B;
+    background: #8B7AB8;
 }
 
 QWidget#annotationPopoutPanel QSlider#paramSlider::handle:horizontal:hover {
-    background: #6B4226;
+    background: #6B5B95;
 }
 
 QWidget#annotationPopoutPanel QSlider#paramSlider::handle:horizontal:disabled {
-    background: #C9B18C;
+    background: #C9BEDC;
 }
 
 QWidget#annotationPopoutPanel QCheckBox {
     spacing: 6px;
-    color: #8B5A2B;
+    color: #3A3357;
 }
 
 QWidget#annotationPopoutPanel QCheckBox::indicator {
     width: 16px;
     height: 16px;
-    border: 1px solid #D9C29A;
+    border: 1px solid #8B7AB8;
     border-radius: 4px;
-    background: #FFF8EC;
+    background: #FFFFFF;
 }
 
 QWidget#annotationPopoutPanel QCheckBox::indicator:hover {
-    border: 1px solid #C68B4E;
+    border: 1px solid #8B7AB8;
+    background: #E4D9F0;
 }
 
 QWidget#annotationPopoutPanel QCheckBox::indicator:checked {
-    background: #C68B4E;
-    border: 1px solid #C68B4E;
+    background: #B5A5D1;
+    border: 1px solid #8B7AB8;
+    image: url(:/icons/checked.png);
 }
 
 QWidget#annotationPopoutPanel QCheckBox::indicator:disabled {
-    background: #F5EAD3;
-    border: 1px solid #E8D5A8;
+    background: #F0EAF5;
+    border: 1px solid #E5D9C5;
 }
 
 /* ---------- 系统托盘提示 ---------- */

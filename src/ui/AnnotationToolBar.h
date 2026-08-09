@@ -8,8 +8,12 @@
  *     圆角暖色背景，GuidePanel 同设计语言）向左级联弹出。
  *   - 双框体交互：m_geometryPanel 几何二级框体（4 个图形按钮竖向）贴工具栏
  *     左侧；m_paramPanel 参数三级框体（各工具参数页）在几何框体左侧再弹出；
- *     无几何展开时参数框体贴工具栏左侧。选二级图形时几何框体保持显示——二级
- *     三级同时存在。
+ *     无几何展开时参数框体贴工具栏左侧。三级参数框体只由点击二级框体中的
+ *     图形按钮时弹出（唯一入口）；点击一级几何按钮只开/关二级框体，不直接
+ *     弹三级。
+ *   - 一级几何启闭循环：点击几何→弹二级框体；再次点击几何→关二级（连同
+ *     三级一起关）。每次点击几何按钮都将当前工具切换为当前默认几何工具
+ *     （来源 QSettings annotation/defaultGeometry），而非上一个使用的工具。
  *   - 切换工具即装载参数：onLevel1Clicked / onLevel2Clicked / setCurrentTool
  *     切换工具后调用 loadToolParamsToScene() 读取该工具 QSettings 存储值并
  *     补发全部参数信号，使场景立即装载该工具实例参数（修复"切荧光笔沿用上一
@@ -21,11 +25,13 @@
  *   - QSettings 持久化（annotation/ 前缀）：点一级写 defaultTool、点几何二级写
  *     defaultGeometry，各图形参数调整即写回；restoreDefaultTool() 截屏完成时
  *     从配置恢复工具/参数状态并同步场景，但不弹框体（仅点击弹开）。
- *   - 参数框体内滑块 / 复选框 / 数值标签 / 色块等控件继承标注工具栏暖色系
- *     （#FFE4B5 背景上的暖棕 #8B5A2B / #C68B4E 系），通过 QSS 作用域限定：
- *     弹出框体（PopoutPanel objectName = annotationPopoutPanel）内的控件走
- *     windows11_light.qss 的 annotationPopoutPanel 作用域规则，不覆盖主界面
- *     紫色系控件；色块按钮保留功能性内联样式（背景色填充 + 圆角 + 暖色边框）。
+ *   - 参数框体内滑块 / 复选框 / 数值标签等控件走主界面紫色系（滑块 groove
+ *     #D9CCEE / 手柄 #8B7AB8，勾选框白底紫边、勾选 #B5A5D1 + 勾号图标），
+ *     通过 QSS 作用域限定：弹出框体（PopoutPanel objectName =
+ *     annotationPopoutPanel）内的控件走 windows11_light.qss 的
+ *     annotationPopoutPanel 作用域规则，不覆盖主界面紫色系控件；二级页 /
+ *     参数页 / 行列容器背景显式透明，露出框体自绘暖色背景；色块按钮保留
+ *     功能性内联样式（背景色填充 + 圆角 + 边框）。
  *   - 框体显示状态用成员标志 m_geometryVisible 跟踪（不依赖 isVisible()），
  *     updatePanelGeometry 据此级联定位参数框体，避免框体首次创建即显示时
  *     因可见性时序误判导致二三级框体重叠。
@@ -220,10 +226,11 @@ private:
     /// @return 二级页容器（装入几何二级框体）
     QWidget* createGeometryPage();
 
-    /// @brief 一级按钮点击分发：具体工具切页 + 装载参数 + 发射 toolChanged；几何弹二级不发射
+    /// @brief 一级按钮点击分发：具体工具切页 + 装载参数 + 发射 toolChanged；
+    ///        几何分支开/关二级框体（启闭循环）并切换当前工具为默认几何工具
     /// @param groupId 被点击按钮的互斥组 id
     void onLevel1Clicked(int groupId);
-    /// @brief 二级图形按钮点击分发：几何框体保持 + 弹该图形三级参数页并发射 toolChanged
+    /// @brief 二级图形按钮点击分发：弹该图形三级参数页（三级唯一入口）并发射 toolChanged
     /// @param shape 被点击的图形工具
     void onLevel2Clicked(SK::Tool shape);
     /// @brief 按工具高亮对应一级按钮（几何由扩展点单独处理）
