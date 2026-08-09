@@ -228,6 +228,10 @@ void MainWindow::setupUi()
     connect(m_annToolBar, &AnnotationToolBar::fontFamilyChanged,
             m_scene, &AnnotationScene::setFontFamily);
 
+    // 用户开始标注时自动收回工具栏二三级展开
+    connect(m_scene, &AnnotationScene::annotationStarted,
+            m_annToolBar, &AnnotationToolBar::collapseExpanded);
+
     // 滚轮缩放时实时更新引导面板的缩放比例显示
     connect(m_view, &AnnotationView::zoomChanged,
             m_guidePanel, &GuidePanel::setZoomScale);
@@ -501,9 +505,8 @@ void MainWindow::onCaptureFinished(const QImage& image)
     m_annToolBar->raise();
     updateAnnotationToolBarGeometry();
 
-    // 默认进入画笔工具：属性面板立即显示颜色/粗细，避免停留在空白选择页
-    // （setCurrentTool 发射 toolChanged，经既有 connect 同步场景工具）
-    m_annToolBar->setCurrentTool(SK::Tool::Pen);
+    // 从 QSettings 恢复上次使用的默认工具（含几何默认图形与参数）
+    m_annToolBar->restoreDefaultTool();
 
     // 显示保存按钮
     m_toolBar->setShowSaveButton(true);
