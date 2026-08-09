@@ -81,23 +81,28 @@ void ArrowItem::paintContent(QPainter* painter,
 
     painter->setRenderHint(QPainter::Antialiasing, true);
 
-    // 主线段：终点缩短到箭头底部，避免直线端点超出箭头尖端
+    // 统一圆角端点：直线与箭头主线两端均用圆头，视觉风格一致
+    QPen pen = m_pen;
+    pen.setCapStyle(Qt::RoundCap);
+    pen.setJoinStyle(Qt::RoundJoin);
+
+    // 主线段：终点缩短到箭头底部并额外"出血"半线宽，
+    // 让圆头完全埋进箭头三角形内部，消除交界处的楔形缺块
     const qreal lineLen = m_line.length();
     if (m_drawArrow && (lineLen > m_arrowSize))
     {
         const qreal angle = std::atan2(m_line.dy(), m_line.dx());
+        const qreal bleed = pen.widthF() * 0.5;
         const QPointF shaftEnd(
-            m_line.p1().x() + std::cos(angle) * (lineLen - m_arrowSize),
-            m_line.p1().y() + std::sin(angle) * (lineLen - m_arrowSize));
-        QPen pen = m_pen;
-        pen.setCapStyle(Qt::RoundCap);
+            m_line.p1().x() + std::cos(angle) * (lineLen - m_arrowSize + bleed),
+            m_line.p1().y() + std::sin(angle) * (lineLen - m_arrowSize + bleed));
         painter->setPen(pen);
         painter->setBrush(Qt::NoBrush);
         painter->drawLine(QLineF(m_line.p1(), shaftEnd));
     }
     else
     {
-        painter->setPen(m_pen);
+        painter->setPen(pen);
         painter->setBrush(Qt::NoBrush);
         painter->drawLine(m_line);
     }

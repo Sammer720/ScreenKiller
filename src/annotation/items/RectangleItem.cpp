@@ -49,9 +49,15 @@ void RectangleItem::paintContent(QPainter* painter,
     Q_UNUSED(widget);
 
     painter->setRenderHint(QPainter::Antialiasing, true);
-    painter->setPen(m_pen);
+
+    // 折角圆角化：半径取半线宽（随线宽自适应），
+    // 消除直角 Miter 尖刺/斜切造成的转角缺块，并使折角圆润
+    QPen pen = m_pen;
+    pen.setJoinStyle(Qt::RoundJoin);
+    painter->setPen(pen);
     painter->setBrush(m_brush);
-    painter->drawRect(m_rect);
+    const qreal radius = qMax(2.0, pen.widthF() * 0.5);
+    painter->drawRoundedRect(m_rect, radius, radius);
 }
 
 QRectF RectangleItem::resizeRect() const
