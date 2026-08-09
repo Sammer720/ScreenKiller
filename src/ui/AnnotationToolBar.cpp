@@ -22,6 +22,13 @@
  *   6. 弹出框体懒创建：首次显示时才 new，避免工具栏独立使用时产生多余控件。
  *   7. 弹开时机：框体仅由用户点击一级/二级按钮时弹出；restoreDefaultTool()
  *      截屏完成时只恢复工具/参数状态并补发射参数信号同步场景，不弹框体。
+ *   8. 框体定位（v7）：updatePanelGeometry 用成员标志 m_geometryVisible 级联
+ *      定位（不依赖 isVisible()，规避框体首次创建尚未 show 时的可见性误判）；
+ *      工具栏 pos() 未就绪时按父容器宽度推导贴右缘兜底，防止跳最左；点几何而
+ *      当前工具非几何时隐藏残留参数框体，防止二三级重叠。
+ *   9. 框体内控件（v7）：滑块/勾选框/数值标签/色块继承标注工具栏暖色系
+ *      （#FFE4B5 背景上的暖棕），经 PopoutPanel 的 objectName
+ *      （annotationPopoutPanel）由 QSS 作用域限定，不覆盖主界面紫色系控件。
  */
 #include "AnnotationToolBar.h"
 
@@ -73,6 +80,9 @@ constexpr int G_POPOUT_WIDTH = 180;
 constexpr int G_GEOMETRY_PANEL_WIDTH = G_TOOL_BUTTON_SIZE + 2 * G_PANEL_MARGIN;
 /// 框体与工具栏/框体之间的间距（像素）
 constexpr int G_POPOUT_OFFSET = 8;
+/// 工具栏相对父容器右缘的边距（像素，与 MainWindow.cpp 的 G_ANN_TOOLBAR_MARGIN
+/// 保持一致，用于工具栏 pos() 未就绪时推导贴右缘位置兜底）
+constexpr int G_TOOLBAR_MARGIN = 12;
 
 // ============================ 背景色（与 GuidePanel 同设计语言） ============================
 // 与 GuidePanel.cpp 的 G_BG_* 保持一致，保证两个悬浮面板视觉风格统一
@@ -310,11 +320,14 @@ int pageIndexOfTool(SK::Tool tool)
 class PopoutPanel : public QWidget
 {
 public:
-    /// @brief 构造函数：启用透明背景，背景由 paintEvent 自绘
+    /// @brief 构造函数：设置 objectName 供 QSS 作用域限定，启用透明背景
     /// @param parent 父控件（工具栏的父控件，即 m_centralStack）
     explicit PopoutPanel(QWidget* parent)
         : QWidget(parent)
     {
+        // objectName 供全局 QSS 以「QWidget#annotationPopoutPanel ...」作用域
+        // 限定框体内控件走暖色系样式，不覆盖主界面紫色系控件
+        setObjectName(QStringLiteral("annotationPopoutPanel"));
         setAttribute(Qt::WA_TranslucentBackground, true);
     }
 
@@ -541,9 +554,9 @@ QWidget* AnnotationToolBar::createColorRow(const QVector<QColor>& palette,
         colorButton->setObjectName(QStringLiteral("colorSwatch"));
         colorButton->setFixedSize(G_COLOR_SWATCH_SIZE, G_COLOR_SWATCH_SIZE);
         colorButton->setToolTip(colorName);
-        // 色块为功能控件，样式元素级内联（背景色 + 圆形 + checked 紫色边框）：
-        // 背景色填充与圆角是该控件不可省的功能性样式，checked 边框与全局紫色系
-        // （#8B7AB8）保持一致；其余控件（滑块/复选框等）走全局 QSS
+        // 色块为功能控件，样式元素级内联（背景色 + 圆形 + checked 暖色边框）：
+        // 背景色填充与圆角是该控件不可省的功能性样式，checked 边框用暖棕系
+        // （#C68B4E）与标注工具栏暖色背景协调；其余控件走框体作用域 QSS
         colorButton->setStyleSheet(QStringLiteral(R"(
 QToolButton#colorSwatch {
     background-color: %1;
@@ -552,7 +565,7 @@ QToolButton#colorSwatch {
     padding: 0px;
 }
 QToolButton#colorSwatch:checked {
-    border: 2px solid #8B7AB8;
+    border: 2px solid #C68B4E;
 }
 )").arg(colorName));
         colorGroup->addButton(colorButton, colorIndex);
@@ -648,6 +661,8 @@ QWidget* AnnotationToolBar::createStrokeParam(const StrokeParamSpec& spec,
                                               ParamHandles* handlesOut)
 {
     auto* paramWidget = new QWidget(this);
+    // objectName 供 QSS 作用域限定：参数页背景透明，露出框体自绘暖色背景
+    paramWidget->setObjectName(QStringLiteral("annotationParamPage"));
     auto* paramLayout = new QVBoxLayout(paramWidget);
     paramLayout->setContentsMargins(0, 0, 0, 0);
     paramLayout->setSpacing(G_PANEL_SPACING);
@@ -711,6 +726,8 @@ QWidget* AnnotationToolBar::createStrokeParam(const StrokeParamSpec& spec,
 QWidget* AnnotationToolBar::createTextParam(ParamHandles* handlesOut)
 {
     auto* paramWidget = new QWidget(this);
+    // objectName 供 QSS 作用域限定：参数页背景透明，露出框体自绘暖色背景
+    paramWidget->setObjectName(QStringLiteral("annotationParamPage"));
     auto* paramLayout = new QVBoxLayout(paramWidget);
     paramLayout->setContentsMargins(0, 0, 0, 0);
     paramLayout->setSpacing(G_PANEL_SPACING);
@@ -767,6 +784,8 @@ QWidget* AnnotationToolBar::createTextParam(ParamHandles* handlesOut)
 QWidget* AnnotationToolBar::createMosaicParam(ParamHandles* handlesOut)
 {
     auto* paramWidget = new QWidget(this);
+    // objectName 供 QSS 作用域限定：参数页背景透明，露出框体自绘暖色背景
+    paramWidget->setObjectName(QStringLiteral("annotationParamPage"));
     auto* paramLayout = new QVBoxLayout(paramWidget);
     paramLayout->setContentsMargins(0, 0, 0, 0);
     paramLayout->setSpacing(G_PANEL_SPACING);
@@ -1049,6 +1068,9 @@ void AnnotationToolBar::onLevel1Clicked(int groupId)
         }
         else
         {
+            // 当前工具非几何：仅弹几何二级框体，同时隐藏残留的参数三级框体
+            // （上一非几何工具的参数页），避免参数框体与几何框体在工具栏左侧重叠
+            hideParamPanel();
             setLevel2Checked(m_currentGeometryShape);
         }
         return;
@@ -1174,6 +1196,8 @@ void AnnotationToolBar::ensureParamPanel()
     // 页栈：非几何参数页 + 几何图形参数页统一入栈（几何二级页独立于参数框体），
     // addWidget 会自动把页面重新挂到页栈
     m_paramStack = new QStackedWidget(m_paramPanel);
+    // objectName 供 QSS 作用域限定：页栈背景透明，露出框体自绘暖色背景
+    m_paramStack->setObjectName(QStringLiteral("annotationParamStack"));
     panelLayout->addWidget(m_paramStack);
 
     m_paramStack->addWidget(m_penParam);            // G_PAGE_PEN
@@ -1197,6 +1221,9 @@ void AnnotationToolBar::ensureParamPanel()
 void AnnotationToolBar::showGeometryPanel()
 {
     ensureGeometryPanel();
+    // 先置显示标志再定位：updatePanelGeometry 依据 m_geometryVisible 决定参数
+    // 框体是否级联到几何框体左侧，不依赖 isVisible()（首次创建尚未 show 时不可靠）
+    m_geometryVisible = true;
     updatePanelGeometry();
     m_geometryPanel->show();
     m_geometryPanel->raise();
@@ -1222,61 +1249,83 @@ void AnnotationToolBar::showParamPanel(int pageIndex)
 
 void AnnotationToolBar::hideGeometryPanel()
 {
+    m_geometryVisible = false;
     if (m_geometryPanel != nullptr)
     {
         m_geometryPanel->hide();
     }
 }
 
-void AnnotationToolBar::hidePanels()
+void AnnotationToolBar::hideParamPanel()
 {
-    hideGeometryPanel();
     if (m_paramPanel != nullptr)
     {
         m_paramPanel->hide();
     }
 }
 
+void AnnotationToolBar::hidePanels()
+{
+    hideGeometryPanel();
+    hideParamPanel();
+}
+
 void AnnotationToolBar::updatePanelGeometry()
 {
-    if (m_paramPanel == nullptr)
+    // 早期返回：两个框体均未创建时无需定位。注意不可只判 paramPanel——
+    // 首次显示几何框体时参数框体可能尚未懒创建，若此时返回则几何框体
+    // 停留在默认位置（0,0 附近），表现为二级框体跳到最左边
+    if ((m_geometryPanel == nullptr) && (m_paramPanel == nullptr))
     {
         return;
     }
 
     const int panelY = pos().y();
 
+    // 工具栏贴右缘基准 X：正常情况下取工具栏当前 X；工具栏尚未被外部
+    // （MainWindow::updateAnnotationToolBarGeometry）布局到右侧时（如刚进入
+    // 标注页布局未稳定），按父容器宽度推导贴右缘位置兜底，防止框体跳最左
+    const int toolbarX = pos().x();
+    int anchorX = toolbarX;
+    if (parentWidget() != nullptr)
+    {
+        const int parentWidth = parentWidget()->width();
+        const int expectedToolbarX = parentWidth - width() - G_TOOLBAR_MARGIN;
+        if ((parentWidth > 0) && (toolbarX < expectedToolbarX))
+        {
+            anchorX = expectedToolbarX;
+        }
+    }
+
     // 几何二级框体：贴工具栏左侧弹开（工具栏贴右缘，框体向左级联弹出）
     if (m_geometryPanel != nullptr)
     {
-        int geometryX = pos().x() - G_GEOMETRY_PANEL_WIDTH - G_POPOUT_OFFSET;
+        int geometryX = anchorX - G_GEOMETRY_PANEL_WIDTH - G_POPOUT_OFFSET;
         // 防御性钳制：窗口过窄时框体可能越出左缘，钳到工具栏右侧（窄窗口兜底）
-        if (parentWidget() != nullptr)
+        if (geometryX < 0)
         {
-            if (geometryX < 0)
-            {
-                geometryX = pos().x() + width() + G_POPOUT_OFFSET;
-            }
+            geometryX = anchorX + width() + G_POPOUT_OFFSET;
         }
         m_geometryPanel->move(geometryX, panelY);
     }
 
-    // 参数三级框体：几何框体可见时在其左侧再弹出（二三级级联），
-    // 否则贴工具栏左侧
-    int paramX = pos().x() - G_POPOUT_WIDTH - G_POPOUT_OFFSET;
-    if ((m_geometryPanel != nullptr) && (m_geometryPanel->isVisible()))
+    // 参数三级框体：几何框体显示时在其左侧再弹出（二三级级联），
+    // 否则贴工具栏左侧。用成员标志 m_geometryVisible 而非 isVisible()：
+    // 后者在框体首次创建（尚未 show）时不可靠，会误判导致二三级重叠
+    int paramX = anchorX - G_POPOUT_WIDTH - G_POPOUT_OFFSET;
+    if ((m_geometryPanel != nullptr) && (m_geometryVisible))
     {
         paramX = m_geometryPanel->pos().x() - G_POPOUT_WIDTH - G_POPOUT_OFFSET;
     }
     // 防御性钳制：窗口过窄时钳到工具栏右侧（窄窗口兜底）
-    if (parentWidget() != nullptr)
+    if (paramX < 0)
     {
-        if (paramX < 0)
-        {
-            paramX = pos().x() + width() + G_POPOUT_OFFSET;
-        }
+        paramX = anchorX + width() + G_POPOUT_OFFSET;
     }
-    m_paramPanel->move(paramX, panelY);
+    if (m_paramPanel != nullptr)
+    {
+        m_paramPanel->move(paramX, panelY);
+    }
 }
 
 QColor AnnotationToolBar::loadColor(const QString& settingsKey, const QColor& fallbackColor)

@@ -21,9 +21,14 @@
  *   - QSettings 持久化（annotation/ 前缀）：点一级写 defaultTool、点几何二级写
  *     defaultGeometry，各图形参数调整即写回；restoreDefaultTool() 截屏完成时
  *     从配置恢复工具/参数状态并同步场景，但不弹框体（仅点击弹开）。
- *   - 参数框体内滑块 / 复选框等控件走全局 QSS（windows11_light.qss 的
- *     QSlider#paramSlider / QCheckBox 规则），不携带私有内联样式；色块按钮
- *     保留功能性内联样式（背景色填充 + 圆角 + checked 边框）。
+ *   - 参数框体内滑块 / 复选框 / 数值标签 / 色块等控件继承标注工具栏暖色系
+ *     （#FFE4B5 背景上的暖棕 #8B5A2B / #C68B4E 系），通过 QSS 作用域限定：
+ *     弹出框体（PopoutPanel objectName = annotationPopoutPanel）内的控件走
+ *     windows11_light.qss 的 annotationPopoutPanel 作用域规则，不覆盖主界面
+ *     紫色系控件；色块按钮保留功能性内联样式（背景色填充 + 圆角 + 暖色边框）。
+ *   - 框体显示状态用成员标志 m_geometryVisible 跟踪（不依赖 isVisible()），
+ *     updatePanelGeometry 据此级联定位参数框体，避免框体首次创建即显示时
+ *     因可见性时序误判导致二三级框体重叠。
  *
  * 本组件只负责自身 UI、状态持久化与信号发射，悬浮定位与业务接线由外部完成。
  */
@@ -239,6 +244,8 @@ private:
     void showParamPanel(int pageIndex);
     /// @brief 隐藏几何二级框体（参数框体不受影响）
     void hideGeometryPanel();
+    /// @brief 隐藏参数三级框体（几何框体不受影响，仅隐藏不重置任何状态）
+    void hideParamPanel();
     /// @brief 隐藏两个弹出框体（保留当前工具与高亮）
     void hidePanels();
     /// @brief 按工具栏当前位置级联定位两个框体（几何贴工具栏左侧，参数在几何左侧）
@@ -292,6 +299,7 @@ private:
     QWidget*          m_geometryPanel = nullptr;     ///< 几何二级框体（懒创建，parent = parentWidget()）
     QWidget*          m_paramPanel = nullptr;        ///< 参数三级框体（懒创建，parent = parentWidget()）
     QStackedWidget*   m_paramStack = nullptr;        ///< 参数框体内页栈（各工具参数页）
+    bool              m_geometryVisible = false;      ///< 几何二级框体是否处于显示状态（定位参数框体用）
     SK::Tool          m_currentGeometryShape = SK::Tool::Line;  ///< 当前几何图形（默认直线）
     SK::Tool          m_currentSceneTool = SK::Tool::Pen;       ///< 当前场景工具（默认水笔）
 };

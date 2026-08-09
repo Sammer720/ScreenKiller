@@ -397,6 +397,78 @@ QCheckBox::indicator:disabled {
     border: 1px solid #E5D9C5;
 }
 
+/* ---------- 标注工具栏弹出框体控件（暖色系，继承标注工具栏 #FFE4B5 背景） ----------
+ * 仅作用于标注工具栏的弹出框体（PopoutPanel，objectName = annotationPopoutPanel）
+ * 及其内部控件，配色继承工具栏暖色背景（#FFE4B5）用暖棕系，不覆盖主界面紫色系控件。
+ * 背景设为 transparent：框体背景由 PopoutPanel::paintEvent 自绘半透明圆角，
+ * 子控件若不透明会盖住自绘背景，故需显式透出。 */
+QWidget#annotationPopoutPanel,
+QWidget#annotationPopoutPanel QLabel,
+QWidget#annotationPopoutPanel QCheckBox,
+QWidget#annotationPopoutPanel QSlider,
+QWidget#annotationParamStack,
+QWidget#annotationParamPage {
+    background: transparent;
+}
+
+QWidget#annotationPopoutPanel QLabel#sliderValueLabel {
+    color: #8B5A2B;
+}
+
+QWidget#annotationPopoutPanel QSlider#paramSlider::groove:horizontal {
+    height: 4px;
+    background: #ECD9AE;
+    border-radius: 2px;
+}
+
+QWidget#annotationPopoutPanel QSlider#paramSlider::sub-page:horizontal {
+    background: #C68B4E;
+    border-radius: 2px;
+}
+
+QWidget#annotationPopoutPanel QSlider#paramSlider::handle:horizontal {
+    width: 14px;
+    height: 14px;
+    margin: -5px 0;
+    border-radius: 7px;
+    background: #8B5A2B;
+}
+
+QWidget#annotationPopoutPanel QSlider#paramSlider::handle:horizontal:hover {
+    background: #6B4226;
+}
+
+QWidget#annotationPopoutPanel QSlider#paramSlider::handle:horizontal:disabled {
+    background: #C9B18C;
+}
+
+QWidget#annotationPopoutPanel QCheckBox {
+    spacing: 6px;
+    color: #8B5A2B;
+}
+
+QWidget#annotationPopoutPanel QCheckBox::indicator {
+    width: 16px;
+    height: 16px;
+    border: 1px solid #D9C29A;
+    border-radius: 4px;
+    background: #FFF8EC;
+}
+
+QWidget#annotationPopoutPanel QCheckBox::indicator:hover {
+    border: 1px solid #C68B4E;
+}
+
+QWidget#annotationPopoutPanel QCheckBox::indicator:checked {
+    background: #C68B4E;
+    border: 1px solid #C68B4E;
+}
+
+QWidget#annotationPopoutPanel QCheckBox::indicator:disabled {
+    background: #F5EAD3;
+    border: 1px solid #E8D5A8;
+}
+
 /* ---------- 系统托盘提示 ---------- */
 QToolTip {
     background: #FDFAF3;
