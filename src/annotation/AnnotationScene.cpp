@@ -155,7 +155,10 @@ void AnnotationScene::setPenColor(const QColor& c)
 
 void AnnotationScene::setPenWidth(qreal w)
 {
-    m_penWidth = qBound(G_MIN_PEN_WIDTH, w, G_MAX_PEN_WIDTH);
+    // 用覆盖所有工具的全局最宽边界做防御性 clamp：
+    // 各工具真实上限由工具栏滑块边界（G_MAX_PEN_WIDTH 等）控制，
+    // 此处仅兜底防非法值，避免高上限工具（荧光笔 45 / 马赛克 65）被水笔边界截断
+    m_penWidth = qBound(G_MIN_ABS_WIDTH, w, G_MAX_ABS_WIDTH);
 }
 
 void AnnotationScene::setBrushColor(const QColor& c)

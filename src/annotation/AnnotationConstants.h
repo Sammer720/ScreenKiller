@@ -27,6 +27,10 @@ constexpr qreal G_MAX_FONT_SIZE = 81.0;
 /// 几何图形（直线/箭头/方框/圆）线条粗细边界（像素）
 constexpr qreal G_MIN_SHAPE_WIDTH = 2.0;
 constexpr qreal G_MAX_SHAPE_WIDTH = 15.0;
+/// 全局线宽边界（像素）：各工具滑块边界不同（水笔 2~20 / 荧光笔 15~45 / 马赛克 15~65），
+/// 场景 setPenWidth 的防御性 clamp 用最宽边界，避免高上限工具（荧光笔/马赛克）被截断
+constexpr qreal G_MIN_ABS_WIDTH = 2.0;
+constexpr qreal G_MAX_ABS_WIDTH = 65.0;
 /// 标注工具栏宽度（像素，MainWindow 与 AnnotationToolBar 共享，避免定位/构造宽度不一致）
 /// v4 仅 5 个 36px 图标按钮竖列（水笔/荧光笔/几何/文字/马赛克），
 /// 宽度 = 按钮 36 + 左右内边距 8×2 = 52（168 为 v3 手风琴遗留，已收窄）

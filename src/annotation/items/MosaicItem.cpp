@@ -81,7 +81,9 @@ void MosaicItem::paintContent(QPainter* painter,
     const QPointF itemPos = pos();
     const QRectF strokeBounds = strokePath.boundingRect();
     const QRectF bgImageRect(bgImage.rect());
-    const qreal blockSize = G_MOSAIC_BLOCK_SIZE;
+    // 块大小跟随笔刷宽度：拖动尺寸滑块时马赛克块粒度同步变化，
+    // 让"尺寸"参数的实际效果直观可见（仅固定 8px 时几乎无感）
+    const qreal blockSize = qMax(4.0, penWidth());
 
     for (qreal gridY = strokeBounds.top(); gridY <= strokeBounds.bottom(); gridY += blockSize)
     {

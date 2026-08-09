@@ -33,10 +33,6 @@ protected:
     /// @brief 绘制马赛克内容（NVI 内容绘制入口）
     void paintContent(QPainter* painter, const QStyleOptionGraphicsItem* option,
                       QWidget* widget = nullptr) override;
-
-private:
-    /// @brief 马赛克块大小（像素，固定粒度）
-    static constexpr qreal G_MOSAIC_BLOCK_SIZE = 8.0;
 };
 
 } // namespace SK
