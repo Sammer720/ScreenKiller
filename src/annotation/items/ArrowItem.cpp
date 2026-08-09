@@ -80,27 +80,46 @@ void ArrowItem::paintContent(QPainter* painter,
     Q_UNUSED(widget);
 
     painter->setRenderHint(QPainter::Antialiasing, true);
-    painter->setPen(m_pen);
-    painter->setBrush(m_brush);
 
-    // 主线段
-    painter->drawLine(m_line);
+    // 主线段：终点缩短到箭头底部，避免直线端点超出箭头尖端
+    const qreal lineLen = m_line.length();
+    if (m_drawArrow && (lineLen > m_arrowSize))
+    {
+        const qreal angle = std::atan2(m_line.dy(), m_line.dx());
+        const QPointF shaftEnd(
+            m_line.p1().x() + std::cos(angle) * (lineLen - m_arrowSize),
+            m_line.p1().y() + std::sin(angle) * (lineLen - m_arrowSize));
+        QPen pen = m_pen;
+        pen.setCapStyle(Qt::RoundCap);
+        painter->setPen(pen);
+        painter->setBrush(Qt::NoBrush);
+        painter->drawLine(QLineF(m_line.p1(), shaftEnd));
+    }
+    else
+    {
+        painter->setPen(m_pen);
+        painter->setBrush(Qt::NoBrush);
+        painter->drawLine(m_line);
+    }
 
     // 终点箭头
     if (m_drawArrow)
     {
-        // 根据线段方向计算箭头三角形两个侧顶点
-        qreal angle = std::atan2(m_line.dy(), m_line.dx());
-        qreal leftAngle = angle + G_ARROW_HALF_RAD;
-        qreal rightAngle = angle - G_ARROW_HALF_RAD;
-        QPointF tip   = m_line.p2();
-        QPointF left  = tip - QPointF(std::cos(leftAngle) * m_arrowSize,
-                                      std::sin(leftAngle) * m_arrowSize);
-        QPointF right = tip - QPointF(std::cos(rightAngle) * m_arrowSize,
-                                      std::sin(rightAngle) * m_arrowSize);
+        const qreal angle = std::atan2(m_line.dy(), m_line.dx());
+        const qreal leftAngle = angle + G_ARROW_HALF_RAD;
+        const qreal rightAngle = angle - G_ARROW_HALF_RAD;
+        const QPointF tip = m_line.p2();
+        const QPointF left(
+            tip.x() - std::cos(leftAngle) * m_arrowSize,
+            tip.y() - std::sin(leftAngle) * m_arrowSize);
+        const QPointF right(
+            tip.x() - std::cos(rightAngle) * m_arrowSize,
+            tip.y() - std::sin(rightAngle) * m_arrowSize);
 
         QPolygonF arrow;
         arrow << tip << left << right;
+        // 关键：箭头只用画刷填充，不要画笔描边，否则粗边框会撑坏三角形
+        painter->setPen(Qt::NoPen);
         painter->setBrush(m_pen.color());
         painter->drawPolygon(arrow);
     }

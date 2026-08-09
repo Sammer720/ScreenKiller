@@ -137,8 +137,8 @@ const QString G_KEY_MOSAIC_WIDTH      = QStringLiteral("annotation/mosaic/width"
 // ============================ 默认值（首次使用落值） ============================
 constexpr int G_DEFAULT_PEN_WIDTH     = 2;    ///< 水笔/直线/箭头/方框/圆默认宽度
 constexpr int G_DEFAULT_HL_WIDTH      = 18;   ///< 荧光笔默认宽度
-constexpr int G_HL_ALPHA_MIN          = 20;   ///< 荧光笔透明度下限
-constexpr int G_HL_ALPHA_MAX          = 220;  ///< 荧光笔透明度上限
+constexpr int G_HL_ALPHA_MIN          = 26;   ///< 荧光笔透明度下限（10%）
+constexpr int G_HL_ALPHA_MAX          = 230;  ///< 荧光笔透明度上限（90%）
 constexpr int G_DEFAULT_HL_ALPHA      = 100;  ///< 荧光笔默认透明度
 constexpr int G_DEFAULT_FONT_SIZE     = 12;   ///< 文字默认字号（pt）
 constexpr int G_DEFAULT_MOSAIC_WIDTH  = 20;   ///< 马赛克默认宽度
@@ -167,28 +167,28 @@ const AnnotationToolBar::StrokeParamSpec G_HIGHLIGHTER_SPEC = {
     G_DEFAULT_HL_WIDTH, false, QString(),
     true, G_KEY_HL_ALPHA, G_HL_ALPHA_MIN, G_HL_ALPHA_MAX, G_DEFAULT_HL_ALPHA
 };
-/// @brief 直线参数规格：标注色板 + 1~30 宽度
+/// @brief 直线参数规格：标注色板 + 2~15 宽度
 const AnnotationToolBar::StrokeParamSpec G_LINE_SPEC = {
     &SK::G_ANNOTATION_COLOR_PALETTE, G_KEY_LINE_COLOR, G_KEY_LINE_WIDTH,
-    static_cast<int>(SK::G_MIN_PEN_WIDTH), static_cast<int>(SK::G_MAX_PEN_WIDTH),
+    static_cast<int>(SK::G_MIN_SHAPE_WIDTH), static_cast<int>(SK::G_MAX_SHAPE_WIDTH),
     G_DEFAULT_PEN_WIDTH, false, QString()
 };
-/// @brief 箭头参数规格：标注色板 + 1~30 宽度
+/// @brief 箭头参数规格：标注色板 + 2~15 宽度
 const AnnotationToolBar::StrokeParamSpec G_ARROW_SPEC = {
     &SK::G_ANNOTATION_COLOR_PALETTE, G_KEY_ARROW_COLOR, G_KEY_ARROW_WIDTH,
-    static_cast<int>(SK::G_MIN_PEN_WIDTH), static_cast<int>(SK::G_MAX_PEN_WIDTH),
+    static_cast<int>(SK::G_MIN_SHAPE_WIDTH), static_cast<int>(SK::G_MAX_SHAPE_WIDTH),
     G_DEFAULT_PEN_WIDTH, false, QString()
 };
-/// @brief 方框参数规格：标注色板 + 1~30 宽度 + 填充勾选
+/// @brief 方框参数规格：标注色板 + 2~15 宽度 + 填充勾选
 const AnnotationToolBar::StrokeParamSpec G_RECT_SPEC = {
     &SK::G_ANNOTATION_COLOR_PALETTE, G_KEY_RECT_COLOR, G_KEY_RECT_WIDTH,
-    static_cast<int>(SK::G_MIN_PEN_WIDTH), static_cast<int>(SK::G_MAX_PEN_WIDTH),
+    static_cast<int>(SK::G_MIN_SHAPE_WIDTH), static_cast<int>(SK::G_MAX_SHAPE_WIDTH),
     G_DEFAULT_PEN_WIDTH, true, G_KEY_RECT_FILLED
 };
-/// @brief 圆参数规格：标注色板 + 1~30 宽度 + 填充勾选
+/// @brief 圆参数规格：标注色板 + 2~15 宽度 + 填充勾选
 const AnnotationToolBar::StrokeParamSpec G_ELLIPSE_SPEC = {
     &SK::G_ANNOTATION_COLOR_PALETTE, G_KEY_ELLIPSE_COLOR, G_KEY_ELLIPSE_WIDTH,
-    static_cast<int>(SK::G_MIN_PEN_WIDTH), static_cast<int>(SK::G_MAX_PEN_WIDTH),
+    static_cast<int>(SK::G_MIN_SHAPE_WIDTH), static_cast<int>(SK::G_MAX_SHAPE_WIDTH),
     G_DEFAULT_PEN_WIDTH, true, G_KEY_ELLIPSE_FILLED
 };
 

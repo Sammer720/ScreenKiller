@@ -12,18 +12,21 @@
 
 namespace SK {
 
-/// 画笔/几何线条粗细边界（像素）
-constexpr qreal G_MIN_PEN_WIDTH = 1.0;
-constexpr qreal G_MAX_PEN_WIDTH = 30.0;
+/// 水笔线条粗细边界（像素）
+constexpr qreal G_MIN_PEN_WIDTH = 2.0;
+constexpr qreal G_MAX_PEN_WIDTH = 20.0;
 /// 荧光笔粗细边界（像素）
-constexpr qreal G_MIN_HIGHLIGHT_WIDTH = 5.0;
-constexpr qreal G_MAX_HIGHLIGHT_WIDTH = 40.0;
+constexpr qreal G_MIN_HIGHLIGHT_WIDTH = 15.0;
+constexpr qreal G_MAX_HIGHLIGHT_WIDTH = 45.0;
 /// 马赛克涂抹粗细边界（像素）
-constexpr qreal G_MIN_MOSAIC_WIDTH = 10.0;
-constexpr qreal G_MAX_MOSAIC_WIDTH = 60.0;
+constexpr qreal G_MIN_MOSAIC_WIDTH = 15.0;
+constexpr qreal G_MAX_MOSAIC_WIDTH = 65.0;
 /// 文字字号边界（pt）
-constexpr qreal G_MIN_FONT_SIZE = 8.0;
-constexpr qreal G_MAX_FONT_SIZE = 72.0;
+constexpr qreal G_MIN_FONT_SIZE = 12.0;
+constexpr qreal G_MAX_FONT_SIZE = 81.0;
+/// 几何图形（直线/箭头/方框/圆）线条粗细边界（像素）
+constexpr qreal G_MIN_SHAPE_WIDTH = 2.0;
+constexpr qreal G_MAX_SHAPE_WIDTH = 15.0;
 /// 标注工具栏宽度（像素，MainWindow 与 AnnotationToolBar 共享，避免定位/构造宽度不一致）
 /// v4 仅 5 个 36px 图标按钮竖列（水笔/荧光笔/几何/文字/马赛克），
 /// 宽度 = 按钮 36 + 左右内边距 8×2 = 52（168 为 v3 手风琴遗留，已收窄）

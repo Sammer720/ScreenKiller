@@ -35,8 +35,8 @@ constexpr qreal G_CORNER_RADIUS = 10.0;
 /// \brief 面板内边距
 constexpr int G_PADDING = 5;
 /// \brief 展开尺寸（容纳 5 行操作提示：拖动平移 / 滚动缩放 / 点击复位 / 右键复制 / Ctrl+S保存 + 底部信息行）
-constexpr int G_EXPANDED_W = 160;
-constexpr int G_EXPANDED_H = 220;
+constexpr int G_EXPANDED_W = 165;
+constexpr int G_EXPANDED_H = 300;
 /// \brief 折叠尺寸
 constexpr int G_COLLAPSED_SIZE = 40;
 /// \brief 折叠状态下图标占面板边长的比例（缩放到 70% 居中显示）
@@ -92,6 +92,24 @@ const QString G_CONTENT_HTML = QStringLiteral(
     "Ctrl + S"
     "</td>"
     "<td style='vertical-align: middle; text-align: right; white-space: nowrap; line-height: 32px;'>保存</td>"
+    "</tr>"
+    "<tr height='32'>"
+    "<td colspan='2' width='105' style='padding-right: 8px; vertical-align: middle; text-align: left; white-space: nowrap; line-height: 32px;'>"
+    "Del + Del"
+    "</td>"
+    "<td style='vertical-align: middle; text-align: right; white-space: nowrap; line-height: 32px;'>清空</td>"
+    "</tr>"
+    "<tr height='32'>"
+    "<td colspan='2' width='105' style='padding-right: 8px; vertical-align: middle; text-align: left; white-space: nowrap; line-height: 32px;'>"
+    "Ctrl + Z"
+    "</td>"
+    "<td style='vertical-align: middle; text-align: right; white-space: nowrap; line-height: 32px;'>撤销</td>"
+    "</tr>"
+    "<tr height='32'>"
+    "<td colspan='2' width='105' style='padding-right: 8px; vertical-align: middle; text-align: left; white-space: nowrap; line-height: 32px;'>"
+    "Ctrl + Y"
+    "</td>"
+    "<td style='vertical-align: middle; text-align: right; white-space: nowrap; line-height: 32px;'>重做</td>"
     "</tr>"
     "</table>"
     "</div>");

@@ -18,10 +18,12 @@
 #include <QPointer>
 #include <QElapsedTimer>
 
+#include "annotation/AnnotationScene.h"
+
 class QLineEdit;
 class QEvent;
 
-namespace SK { class AnnotationScene; class TextItem; }
+namespace SK { class TextItem; }
 
 /**
  * @brief 标注画布视图
@@ -53,6 +55,12 @@ public:
      * 复位成功后发射 zoomChanged（缩放因子回到 1.0）。
      */
     void resetToDefault();
+
+    /**
+     * @brief 工具切换回调：切换到非文字工具时取消当前未提交的文字编辑
+     * @param tool 新工具类型
+     */
+    void onToolChanged(SK::Tool tool);
 
 Q_SIGNALS:
     /// @brief 视图缩放比例变化

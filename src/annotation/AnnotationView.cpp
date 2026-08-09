@@ -328,6 +328,15 @@ void AnnotationView::onTextEditRequested(SK::TextItem* item)
     editor->show();
 }
 
+void AnnotationView::onToolChanged(SK::Tool tool)
+{
+    // 切换到非文字工具时，若还有未提交的文字编辑器，直接丢弃当前输入
+    if ((tool != SK::Tool::Text) && (m_textEditor != nullptr))
+    {
+        closeTextEditor(false);
+    }
+}
+
 void AnnotationView::closeTextEditor(bool commit)
 {
     // 无编辑器或正在关闭时直接返回（布尔守卫防 editingFinished 重入）

@@ -217,6 +217,8 @@ void MainWindow::setupUi()
     // 工具栏 → 标注场景：工具切换与画笔/文字属性变化实时同步到场景
     connect(m_annToolBar, &AnnotationToolBar::toolChanged,
             m_scene, &AnnotationScene::setTool);
+    connect(m_annToolBar, &AnnotationToolBar::toolChanged,
+            m_view, &AnnotationView::onToolChanged);
     connect(m_annToolBar, &AnnotationToolBar::penColorChanged,
             m_scene, &AnnotationScene::setPenColor);
     connect(m_annToolBar, &AnnotationToolBar::penWidthChanged,

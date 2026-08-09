@@ -110,6 +110,22 @@ private:
     SK::BaseAnnotationItem* m_item;          ///< 待移除图元
 };
 
+/**
+ * @brief 将点限制在指定矩形范围内
+ * @param p 待限制的点
+ * @param rect 目标矩形
+ * @return 限制后的点；rect 为空时返回原值
+ */
+QPointF clampPointToRect(const QPointF& p, const QRectF& rect)
+{
+    if (rect.isNull())
+    {
+        return p;
+    }
+    return QPointF(qBound(rect.left(), p.x(), rect.right()),
+                   qBound(rect.top(), p.y(), rect.bottom()));
+}
+
 } // namespace
 
 namespace SK {
@@ -132,6 +148,9 @@ Tool AnnotationScene::tool() const
 void AnnotationScene::setPenColor(const QColor& c)
 {
     m_penColor = c;
+    // 填充色跟随画笔色：工具栏没有独立填充色选择器，
+    // 勾选填充时以当前画笔颜色填充（避免默认透明色导致看不见填充）
+    m_brushColor = c;
 }
 
 void AnnotationScene::setPenWidth(qreal w)
@@ -316,7 +335,7 @@ void AnnotationScene::mousePressEvent(QGraphicsSceneMouseEvent* event)
     // 用户开始标注：通知外部（如工具栏收起二三级展开）
     Q_EMIT annotationStarted();
 
-    m_startPos = event->scenePos();
+    m_startPos = clampPointToRect(event->scenePos(), sceneRect());
     beginCreateItem(m_tool, m_startPos);
 }
 
@@ -365,6 +384,11 @@ void AnnotationScene::beginCreateItem(Tool t, const QPointF& pos)
     {
         auto* arrowItem = new ArrowItem();
         arrowItem->setDrawArrow(t == Tool::Arrow);
+        if (t == Tool::Arrow)
+        {
+            // 箭头尺寸随线宽动态放大，避免粗线时箭头比例崩坏
+            arrowItem->setArrowSize(qMax(12.0, m_penWidth * 2.0 + 4.0));
+        }
         item = arrowItem;
         break;
     }
@@ -386,6 +410,7 @@ void AnnotationScene::beginCreateItem(Tool t, const QPointF& pos)
         auto* textItem = new TextItem();
         QFont textFont(m_fontFamily, qRound(m_fontSize));
         textItem->setFont(textFont);
+        textItem->setPenColor(m_penColor);
         textItem->setPos(pos);
         addItem(textItem);
         // 不在这里入栈：等视图编辑器提交后由 commitTextItem 入栈
@@ -431,7 +456,8 @@ void AnnotationScene::updateCreateItem(const QPointF& pos)
     }
 
     using namespace SK;
-    QPointF local = pos - m_currentItem->pos();
+    QPointF clampedPos = clampPointToRect(pos, sceneRect());
+    QPointF local = clampedPos - m_currentItem->pos();
 
     // 根据图元类型分发更新逻辑
     if (auto* rectItem = dynamic_cast<RectangleItem*>(m_currentItem))

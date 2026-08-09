@@ -63,8 +63,10 @@ QRectF TextItem::boundingRect() const
     // 空文本时用一个空格占位，否则 boundingRect 返回空
     QString measureText = m_text.isEmpty() ? QStringLiteral(" ") : m_text;
     QRectF textRect = fm.boundingRect(measureText);
-    return textRect.adjusted(-G_TEXT_MARGIN, -G_TEXT_MARGIN,
-                              G_TEXT_MARGIN,  G_TEXT_MARGIN);
+    // 图元原点作为文字起点，向右下扩展，与内联输入框位置对齐
+    return QRectF(0.0, 0.0,
+                  textRect.width() + 2.0 * G_TEXT_MARGIN,
+                  textRect.height() + 2.0 * G_TEXT_MARGIN);
 }
 
 void TextItem::paintContent(QPainter* painter,
@@ -87,8 +89,15 @@ void TextItem::paintContent(QPainter* painter,
         painter->setPen(Qt::NoPen);
         painter->drawRect(itemBoundingRect);
     }
+
+    // 文字从原点右下方开始绘制，与输入框位置对齐
+    QFontMetricsF fm(m_font);
+    QString measureText = m_text.isEmpty() ? QStringLiteral(" ") : m_text;
+    QRectF textRect = fm.boundingRect(measureText);
+    QRectF drawRect(G_TEXT_MARGIN, G_TEXT_MARGIN,
+                    textRect.width(), textRect.height());
     painter->setPen(m_pen.color());
-    painter->drawText(itemBoundingRect, Qt::AlignLeft | Qt::AlignVCenter, m_text);
+    painter->drawText(drawRect, Qt::AlignLeft | Qt::AlignVCenter, m_text);
 }
 
 QRectF TextItem::resizeRect() const
