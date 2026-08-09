@@ -269,7 +269,12 @@ void AnnotationScene::deleteSelected()
 
 void AnnotationScene::clearAllAnnotations()
 {
-    // 收集当前全部图元后逐个删除，跳过背景图元（背景由 loadImage 重设）
+    // 先清空撤销栈：AddItemCommand 析构会为它持有的每个图元执行 removeItem + delete，
+    // 由命令完成图元的正确释放（命令是图元的所有权持有者）。
+    // 若先直接 delete 图元再清栈，命令析构时会对已释放指针调用 scene() 触发悬垂崩溃。
+    m_undoStack->clear();
+
+    // 清理未被任何撤销命令持有的图元（如绘制中的 m_currentItem），跳过背景图元
     const QList<QGraphicsItem*> allItems = items();
     for (QGraphicsItem* item : allItems)
     {
@@ -280,10 +285,8 @@ void AnnotationScene::clearAllAnnotations()
         removeItem(item);
         delete item;
     }
-    // 若正在创建的图元也被删除，复位创建状态指针，防止后续悬垂访问
+    // 复位创建状态指针，防止后续悬垂访问
     m_currentItem = nullptr;
-    // 清空撤销历史：先前的撤销/重做命令不再有效
-    m_undoStack->clear();
 }
 
 void AnnotationScene::setHighlighterAlpha(int alpha)
