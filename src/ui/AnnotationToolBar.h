@@ -1,19 +1,21 @@
 /**
  * \file AnnotationToolBar.h
- * \brief 标注工具栏 v3：三级层级工具栏（一级工具 → 几何二级 → 三级参数）
+ * \brief 标注工具栏 v4：一级工具竖列 + 右侧弹出独立框体（二三级内容）
  *
  * 设计说明：
- *   - 一级 5 个图标按钮：水笔 / 荧光笔 / 几何 / 文字 / 马赛克；
- *     几何展开二级 4 个图形按钮（直线 / 箭头 / 方框 / 圆），
- *     点二级图形再展开三级参数区。
+ *   - 工具栏本体仅 5 个一级按钮竖排（水笔 / 荧光笔 / 几何 / 文字 / 马赛克），
+ *     不含任何内联展开区；几何二级图形页与各工具参数页统一放入工具栏右侧的
+ *     独立弹出框体（m_centralStack 子控件悬浮，GuidePanel 同款半透明圆角自绘）。
+ *   - 按钮 checked/hover 走全局 QSS 紫色系（#E4D9F0 hover / #B5A5D1 checked），
+ *     工具栏不再携带私有 QSS；所有按钮配置 tooltip（调用
+ *     ToolButton::setToolTipEnabled(false) 放行拦截）。
  *   - 参数区无文字标签：颜色行仅色块（20x20 可勾选互斥），尺寸一律滑块 + 数值。
- *   - 双色板：水笔/文字/几何用 G_ANNOTATION_COLOR_PALETTE，
+ *     双色板：水笔/文字/几何用 G_ANNOTATION_COLOR_PALETTE，
  *     荧光笔用 G_HIGHLIGHTER_COLOR_PALETTE。
- *   - QSettings 持久化（annotation/ 前缀）：默认工具、默认几何图形、各图形参数，
- *     用户调整即写回，首次使用落默认值。
- *   - 标注开始自动收回：collapseExpanded() 收起二三级
- *     （MainWindow 负责连接 annotationStarted → collapseExpanded）。
- *   - 半透明暖色圆角背景与 GuidePanel 同设计语言（paintEvent 自绘）。
+ *   - QSettings 持久化（annotation/ 前缀）：点一级工具写 defaultTool、
+ *     点几何二级写 defaultGeometry，各图形参数调整即写回；restoreDefaultTool()
+ *     截屏完成时从配置恢复并弹出参数框体。
+ *   - 标注开始自动收回：collapseExpanded() 隐藏弹出框体（保留当前工具与高亮）。
  *
  * 本组件只负责自身 UI、状态持久化与信号发射，悬浮定位与业务接线由外部完成。
  */
@@ -34,20 +36,21 @@ class QButtonGroup;
 class QPaintEvent;
 class QSettings;
 class QSlider;
+class QStackedWidget;
 
 namespace SK {
 
 class ToolButton;   ///< 前向声明（实现文件再包含完整定义）
 
 /**
- * @brief 标注工具栏（右侧悬浮）——三级层级工具栏 + 内联参数区
+ * @brief 标注工具栏（右侧悬浮）——一级工具竖列 + 右侧弹出参数框体
  */
 class AnnotationToolBar : public QWidget
 {
     Q_OBJECT
 public:
     /**
-     * @brief 构造函数：构建三级 UI 并读取 QSettings 恢复默认工具/参数状态
+     * @brief 构造函数：构建一级按钮列并读取 QSettings 恢复默认工具/参数状态
      * @param parent 父控件；标注页中应传入中央页栈（QStackedWidget）以叠加在页面上
      */
     explicit AnnotationToolBar(QWidget* parent = nullptr);
@@ -56,10 +59,10 @@ public:
     ~AnnotationToolBar() = default;
 
     /**
-     * @brief 从外部同步当前工具（高亮对应一级/二级按钮并展开其参数区）
+     * @brief 从外部同步当前工具（高亮对应一级/二级按钮并弹出其参数框体）
      *
-     * Line/Arrow/Rectangle/Ellipse 会自动展开「几何一级 + 二级行 + 该图形三级参数」；
-     * Select 等非工具栏工具则全部收起。同步完成后发射 toolChanged，
+     * Line/Arrow/Rectangle/Ellipse 会自动展开「几何一级 + 二级图形 + 该图形参数页」；
+     * Select 等非工具栏工具则收起弹出框体。同步完成后发射 toolChanged，
      * 保证外部场景工具与工具栏状态一致（截屏完成恢复默认工具即依赖此信号）。
      *
      * @param tool 具体场景工具（Pen/Highlighter/Line/Arrow/Rectangle/Ellipse/Text/Mosaic）
@@ -67,9 +70,9 @@ public:
     void setCurrentTool(SK::Tool tool);
 
     /**
-     * @brief 收起全部参数区与几何二级行（标注开始创建图元时调用）
+     * @brief 收起弹出框体（标注开始创建图元时调用）
      *
-     * 一级按钮与当前工具保持不变，仅 UI 折叠，不发射任何信号。
+     * 一级/二级按钮与当前工具保持不变，仅隐藏框体，不发射任何信号。
      */
     void collapseExpanded();
 
@@ -77,7 +80,7 @@ public:
      * @brief 从 QSettings 恢复默认工具（截屏完成时调用）
      *
      * 读取 annotation/defaultTool + annotation/defaultGeometry，
-     * 经 setCurrentTool 应用并同步外部场景。
+     * 经 setCurrentTool 应用并同步外部场景（同时弹出对应参数框体）。
      */
     void restoreDefaultTool();
 
@@ -126,18 +129,22 @@ protected:
     void paintEvent(QPaintEvent* event) override;
 
 private:
-    /// @brief 构建整体布局与全部子控件
+    /// @brief 构建一级按钮列与全部参数页（参数页延迟装入弹出框体）
     void setupUi();
     /// @brief 创建一级工具图标按钮（互斥组 id = 工具枚举值，几何用独立专用 id）
     /// @param iconResource 图标资源路径（:/icons/xxx.png）
+    /// @param toolTipText 按钮提示文本（中文，如「水笔」）
     /// @param groupId 一级互斥组内 id
     /// @return 创建完成的按钮
-    SK::ToolButton* createLevel1Button(const QString& iconResource, int groupId);
+    SK::ToolButton* createLevel1Button(const QString& iconResource, const QString& toolTipText,
+                                       int groupId);
     /// @brief 创建几何二级图形图标按钮（互斥组 id = 图形工具枚举值）
     /// @param iconResource 图标资源路径（:/icons/xxx.png）
+    /// @param toolTipText 按钮提示文本（中文，如「直线」）
     /// @param shape 图形工具（Line/Arrow/Rectangle/Ellipse）
     /// @return 创建完成的按钮
-    SK::ToolButton* createLevel2Button(const QString& iconResource, SK::Tool shape);
+    SK::ToolButton* createLevel2Button(const QString& iconResource, const QString& toolTipText,
+                                       SK::Tool shape);
     /// @brief 创建颜色行（无文字标签，仅 20x20 可勾选互斥色块）
     /// @param palette 色板（遍历生成色块）
     /// @param settingsKey 颜色持久化键（读入勾选 / 点击写回）
@@ -152,28 +159,40 @@ private:
     QWidget* createSliderRow(int minValue, int maxValue, int initialValue, QSlider** sliderOut);
     /// @brief 创建描边类参数区（颜色行 + 尺寸滑块，可选填充勾选）
     /// @param spec 装配规格（色板/持久化键/滑块边界/填充开关）
-    /// @return 参数区容器（初始收起）
+    /// @return 参数区容器（初始隐藏，装入弹出框体页栈）
     QWidget* createStrokeParam(const StrokeParamSpec& spec);
     /// @brief 创建文字参数区（字体选择 + 颜色行 + 字号滑块）
-    /// @return 参数区容器（初始收起）
+    /// @return 参数区容器（初始隐藏，装入弹出框体页栈）
     QWidget* createTextParam();
     /// @brief 创建马赛克参数区（仅尺寸滑块，颜色取自背景不可配置）
-    /// @return 参数区容器（初始收起）
+    /// @return 参数区容器（初始隐藏，装入弹出框体页栈）
     QWidget* createMosaicParam();
+    /// @brief 创建几何二级图形页（直线/箭头/方框/圆 4 个图标按钮横排）
+    /// @return 二级页容器（初始隐藏，装入弹出框体页栈）
+    QWidget* createGeometryPage();
 
-    /// @brief 一级按钮点击分发：具体工具展开 + 发射 toolChanged；几何仅展开不发射
+    /// @brief 一级按钮点击分发：具体工具弹参数框体 + 发射 toolChanged；几何弹二级页不发射
     /// @param groupId 被点击按钮的互斥组 id
     void onLevel1Clicked(int groupId);
-    /// @brief 二级图形按钮点击分发：展开几何三级参数并发射 toolChanged
+    /// @brief 二级图形按钮点击分发：弹该图形三级参数页并发射 toolChanged
     /// @param shape 被点击的图形工具
     void onLevel2Clicked(SK::Tool shape);
-    /// @brief 按工具展开对应一级参数区（Pen/Highlighter/Text/Mosaic），其余全部收起
+    /// @brief 按工具高亮对应一级按钮（几何由扩展点单独处理）
     /// @param tool 当前工具
-    void applyToolExpansion(SK::Tool tool);
-    /// @brief 展开几何一级按钮 + 二级行 + 当前图形三级参数，其余全部收起
-    void expandGeometryArea();
-    /// @brief 收起全部参数区与几何二级行（一级按钮保持原勾选态）
-    void hideAllExpanded();
+    void setLevel1Checked(SK::Tool tool);
+    /// @brief 按图形高亮对应二级按钮（找不到时静默）
+    /// @param shape 当前几何图形
+    void setLevel2Checked(SK::Tool shape);
+
+    /// @brief 懒创建弹出框体（首次显示时创建，装入全部参数页与几何二级页）
+    void ensurePopoutPanel();
+    /// @brief 显示弹出框体并切到指定页（懒创建 + 定位 + 置顶）
+    /// @param pageIndex 弹出框体页栈页索引
+    void showPopoutPanel(int pageIndex);
+    /// @brief 隐藏弹出框体（保留当前工具与高亮）
+    void hidePopoutPanel();
+    /// @brief 按工具栏当前位置重新定位弹出框体（贴着工具栏右侧，越界时左移钳制）
+    void updatePopoutGeometry();
 
     /// @brief 读取持久化颜色（无记录或非法时回退默认色）
     /// @param settingsKey 颜色持久化键
@@ -199,12 +218,15 @@ private:
     SK::ToolButton*   m_geometryButton = nullptr;    ///< 一级：几何按钮
     SK::ToolButton*   m_textButton = nullptr;        ///< 一级：文字按钮
     SK::ToolButton*   m_mosaicButton = nullptr;      ///< 一级：马赛克按钮
-    QWidget*          m_penParam = nullptr;          ///< 水笔参数区（颜色 + 尺寸）
-    QWidget*          m_highlighterParam = nullptr;   ///< 荧光笔参数区（颜色 + 尺寸）
-    QWidget*          m_geometryRow = nullptr;       ///< 几何二级按钮行（直线/箭头/方框/圆）
-    QWidget*          m_textParam = nullptr;         ///< 文字参数区（字体 + 颜色 + 字号）
-    QWidget*          m_mosaicParam = nullptr;       ///< 马赛克参数区（仅尺寸）
-    QHash<int, QWidget*> m_shapeParams;              ///< 几何三级参数区：图形 Tool 枚举 → 参数区
+    QWidget*          m_penParam = nullptr;          ///< 水笔参数页（颜色 + 尺寸）
+    QWidget*          m_highlighterParam = nullptr;  ///< 荧光笔参数页（颜色 + 尺寸）
+    QWidget*          m_geometryPage = nullptr;      ///< 几何二级页（直线/箭头/方框/圆横排）
+    QWidget*          m_textParam = nullptr;         ///< 文字参数页（字体 + 颜色 + 字号）
+    QWidget*          m_mosaicParam = nullptr;       ///< 马赛克参数页（仅尺寸）
+    QHash<int, QWidget*> m_shapeParams;              ///< 几何图形参数页：图形 Tool 枚举 → 参数页
+    QHash<int, int>   m_shapePageIndex;              ///< 几何图形参数页：图形 Tool 枚举 → 页索引
+    QWidget*          m_popoutPanel = nullptr;       ///< 弹出框体（懒创建，parent = parentWidget()）
+    QStackedWidget*   m_popoutStack = nullptr;       ///< 弹出框体内页栈（参数页/几何二级页）
     SK::Tool          m_currentGeometryShape = SK::Tool::Line;  ///< 当前几何图形（默认直线）
     SK::Tool          m_currentSceneTool = SK::Tool::Pen;       ///< 当前场景工具（默认水笔）
 };

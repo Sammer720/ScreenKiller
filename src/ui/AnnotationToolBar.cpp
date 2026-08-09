@@ -1,17 +1,18 @@
 /**
  * \file AnnotationToolBar.cpp
- * \brief AnnotationToolBar v3 实现：三级层级工具栏、参数区与信号发射
+ * \brief AnnotationToolBar v4 实现：一级工具竖列、右侧弹出框体与信号发射
  *
  * 实现要点：
- *   1. 背景不依赖 QSS，直接在 paintEvent 自绘半透明圆角暖色矩形
- *      （WA_TranslucentBackground + QPainterPath），与 GuidePanel 同设计语言。
- *   2. 一级/二级按钮用 SK::ToolButton + IconOnly 单图标（无三态变体），
- *      高亮/悬停由 QSS 的 :checked/:hover 规则驱动。
- *   3. 展开/收起全部用 QWidget 容器 + setVisible 控制，不使用 QStackedWidget：
- *      一级仅水笔/荧光笔/文字/马赛克带参数区；几何展开二级行 + 当前图形三级参数。
- *   4. QSettings（默认构造，INI 格式）持久化：构造期读入初始化各控件状态，
- *      用户调整（选色/拖滑块/勾填充/改字体）即写回。
- *   5. 构造期不发射任何信号：先设置默认值再 connect，避免误发。
+ *   1. 工具栏本体背景不依赖 QSS，在 paintEvent 自绘半透明圆角暖色矩形
+ *      （WA_TranslucentBackground + QPainterPath），与 GuidePanel 同设计语言；
+ *      按钮 checked/hover 走全局 QSS 紫色系，工具栏不再携带私有 QSS。
+ *   2. 二三级内容（几何二级页 + 各工具参数页）统一放入工具栏右侧的独立弹出
+ *      框体（m_popoutStack 页栈），框体同样自绘背景，作为父控件
+ *      （m_centralStack）子控件悬浮显示，定位紧贴工具栏右侧。
+ *   3. 持久化：点一级写 annotation/defaultTool、点几何二级写
+ *      annotation/defaultGeometry，参数调整（选色/拖滑块/勾填充/改字体）即写回；
+ *      构造期只读不写，先设置默认状态再 connect，避免误发信号。
+ *   4. 弹出框体懒创建：首次显示时才 new，避免工具栏独立使用时产生多余控件。
  */
 #include "AnnotationToolBar.h"
 
@@ -28,10 +29,9 @@
 #include <QPainterPath>
 #include <QSettings>
 #include <QSlider>
+#include <QStackedWidget>
 #include <QToolButton>
 #include <QVBoxLayout>
-
-#include <utility>  // std::as_const
 
 namespace SK {
 
@@ -50,12 +50,18 @@ constexpr int G_TOOL_ICON_SIZE = 26;
 constexpr int G_COLOR_SWATCH_SIZE = 20;
 /// 色块间距（像素）
 constexpr int G_SWATCH_SPACING = 4;
-/// 几何二级行内按钮间距（像素，4 x 36 按钮需收紧以装入固定面板宽度）
+/// 几何二级页内按钮间距（像素，4 x 36 按钮需收紧以装入固定面板宽度）
 constexpr int G_GEOMETRY_ROW_SPACING = 2;
 /// 滑块数值标签固定宽度（像素，避免位数变化导致滑块跳动）
 constexpr int G_SLIDER_VALUE_LABEL_WIDTH = 24;
 /// 几何一级按钮专用互斥组 id（Tool 枚举无 Geometry 值，几何是工具栏内部一级分组）
 constexpr int G_GEOMETRY_BUTTON_ID = 100;
+
+// ============================ 弹出框体常量 ============================
+/// 弹出框体固定宽度（像素）
+constexpr int G_POPOUT_WIDTH = 180;
+/// 弹出框体与工具栏右侧的间距（像素）
+constexpr int G_POPOUT_OFFSET = 8;
 
 // ============================ 背景色（与 GuidePanel 同设计语言） ============================
 // 与 GuidePanel.cpp 的 G_BG_* 保持一致，保证两个悬浮面板视觉风格统一
@@ -106,6 +112,15 @@ constexpr int G_DEFAULT_FONT_SIZE     = 12;   ///< 文字默认字号（pt）
 constexpr int G_DEFAULT_MOSAIC_WIDTH  = 20;   ///< 马赛克默认宽度
 const QString G_DEFAULT_FONT_FAMILY   = QStringLiteral("微软雅黑");  ///< 文字默认字体族
 // 描边类颜色默认值取各色板首色（标注色板首色 #FF0000，荧光笔色板首色 #FFEB3B）
+
+// ============================ 弹出框体页索引（页栈顺序与 ensurePopoutPanel 装入顺序一致） ============================
+constexpr int G_PAGE_PEN         = 0;   ///< 水笔参数页
+constexpr int G_PAGE_HIGHLIGHTER = 1;   ///< 荧光笔参数页
+constexpr int G_PAGE_GEOMETRY    = 2;   ///< 几何二级页（直线/箭头/方框/圆横排）
+constexpr int G_PAGE_TEXT        = 3;   ///< 文字参数页
+constexpr int G_PAGE_MOSAIC      = 4;   ///< 马赛克参数页
+/// 几何图形参数页起始索引（其后按 直线/箭头/方框/圆 顺序递增）
+constexpr int G_PAGE_SHAPE_BASE  = 5;
 
 // ============================ 描边类参数区装配规格 ============================
 /// @brief 水笔参数规格：标注色板 + 1~30 宽度
@@ -186,6 +201,103 @@ SK::Tool shapeFromName(const QString& shapeName)
     return SK::Tool::Line;
 }
 
+// ============================ 工具枚举 → 持久化名称映射 ============================
+/// @brief 具体场景工具 → 一级工具名称（用于点一级时写回 defaultTool）
+/// @param tool 场景工具（Pen/Highlighter/Text/Mosaic，其余兜底 "pen"）
+/// @return 持久化工具名称
+QString toolNameOf(SK::Tool tool)
+{
+    switch (tool)
+    {
+    case SK::Tool::Highlighter:
+        return QStringLiteral("highlighter");
+    case SK::Tool::Text:
+        return QStringLiteral("text");
+    case SK::Tool::Mosaic:
+        return QStringLiteral("mosaic");
+    default:
+        return QStringLiteral("pen");
+    }
+}
+
+/// @brief 几何图形 → 图形名称（用于点二级时写回 defaultGeometry）
+/// @param shape 图形工具（Arrow/Rectangle/Ellipse，其余兜底 "line"）
+/// @return 持久化图形名称
+QString shapeNameOf(SK::Tool shape)
+{
+    switch (shape)
+    {
+    case SK::Tool::Arrow:
+        return QStringLiteral("arrow");
+    case SK::Tool::Rectangle:
+        return QStringLiteral("rectangle");
+    case SK::Tool::Ellipse:
+        return QStringLiteral("ellipse");
+    default:
+        return QStringLiteral("line");
+    }
+}
+
+/// @brief 判断是否为几何图形工具
+/// @param tool 待判断的工具
+/// @return 是几何图形（Line/Arrow/Rectangle/Ellipse）返回 true
+bool isGeometryTool(SK::Tool tool)
+{
+    return (tool == SK::Tool::Line) || (tool == SK::Tool::Arrow)
+        || (tool == SK::Tool::Rectangle) || (tool == SK::Tool::Ellipse);
+}
+
+/// @brief 非几何一级工具 → 弹出框体页索引（几何由调用方单独处理）
+/// @param tool 场景工具（Pen/Highlighter/Text/Mosaic）
+/// @return 对应参数页索引
+int pageIndexOfTool(SK::Tool tool)
+{
+    switch (tool)
+    {
+    case SK::Tool::Pen:
+        return G_PAGE_PEN;
+    case SK::Tool::Highlighter:
+        return G_PAGE_HIGHLIGHTER;
+    case SK::Tool::Text:
+        return G_PAGE_TEXT;
+    case SK::Tool::Mosaic:
+        return G_PAGE_MOSAIC;
+    default:
+        return G_PAGE_GEOMETRY;
+    }
+}
+
+// ============================ 弹出框体（自绘半透明圆角背景） ============================
+/// @brief 弹出框体：与 GuidePanel / 工具栏同设计语言的悬浮面板
+///
+/// 仅提供 WA_TranslucentBackground + paintEvent 自绘圆角暖色背景，
+/// 内容由外部布局（页栈）填充。
+class PopoutPanel : public QWidget
+{
+public:
+    /// @brief 构造函数：启用透明背景，背景由 paintEvent 自绘
+    /// @param parent 父控件（工具栏的父控件，即 m_centralStack）
+    explicit PopoutPanel(QWidget* parent)
+        : QWidget(parent)
+    {
+        setAttribute(Qt::WA_TranslucentBackground, true);
+    }
+
+protected:
+    /// @brief 自绘半透明圆角暖色背景（与 GuidePanel 同色系，保持视觉统一）
+    /// @param event 绘制事件
+    void paintEvent(QPaintEvent* event) override
+    {
+        Q_UNUSED(event);
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing, true);
+
+        QPainterPath path;
+        path.addRoundedRect(rect(), G_CORNER_RADIUS, G_CORNER_RADIUS);
+        painter.fillPath(path, QColor(G_BG_R, G_BG_G, G_BG_B, G_BG_A));
+    }
+};
+
 } // namespace
 
 AnnotationToolBar::AnnotationToolBar(QWidget* parent)
@@ -201,117 +313,56 @@ void AnnotationToolBar::setupUi()
     setAttribute(Qt::WA_TranslucentBackground, true);
     // 固定宽度与 MainWindow 定位共享同一常量，避免构造/定位宽度不一致
     setFixedWidth(SK::G_ANN_TOOLBAR_WIDTH);
-
-    // 仅定义子控件交互样式（按钮 hover/checked、色块边框、滑块轨道/手柄）；
-    // 根对象背景不在此定义，避免破坏 paintEvent 自绘的圆角
-    setStyleSheet(QStringLiteral(R"(
-#annotationToolBar QToolButton {
-    background: transparent;
-    border: none;
-    border-radius: 6px;
-    padding: 4px;
-}
-#annotationToolBar QToolButton:hover {
-    background-color: rgba(0, 0, 0, 0.06);
-}
-#annotationToolBar QToolButton:checked {
-    background-color: rgba(0, 120, 215, 0.16);
-}
-#annotationToolBar QToolButton#colorSwatch {
-    padding: 0px;
-    border: 1px solid rgba(0, 0, 0, 0.25);
-    border-radius: 10px;
-}
-#annotationToolBar QToolButton#colorSwatch:checked {
-    border: 2px solid #0078D4;
-}
-#annotationToolBar QCheckBox {
-    spacing: 6px;
-}
-#annotationToolBar QSlider::groove:horizontal {
-    height: 4px;
-    background: rgba(0, 0, 0, 0.15);
-    border-radius: 2px;
-}
-#annotationToolBar QSlider::sub-page:horizontal {
-    background: #0078D4;
-    border-radius: 2px;
-}
-#annotationToolBar QSlider::handle:horizontal {
-    width: 14px;
-    height: 14px;
-    margin: -5px 0;
-    border-radius: 7px;
-    background: #0078D4;
-}
-#annotationToolBar QLabel#sliderValueLabel {
-    color: #333333;
-}
-)"));
+    // 注意：不设置任何私有 QSS —— 按钮 checked/hover 走全局紫色系，
+    // 工具栏与弹出框体背景均由 paintEvent 自绘圆角
 
     // 配置读写：默认构造跟随 main.cpp 的 org/app 与 INI 格式
     m_settings = new QSettings(this);
-    // 一级/二级互斥组：同一时刻仅允许一个工具处于选中态
+    // 一级/二级互斥组：同一时刻仅允许一个按钮处于选中态
     m_level1Group = new QButtonGroup(this);
     m_level1Group->setExclusive(true);
     m_level2Group = new QButtonGroup(this);
     m_level2Group->setExclusive(true);
 
+    // ---------- 工具栏本体：仅一级按钮竖列，无任何内联展开区 ----------
     auto* rootLayout = new QVBoxLayout(this);
     rootLayout->setContentsMargins(G_PANEL_MARGIN, G_PANEL_MARGIN, G_PANEL_MARGIN, G_PANEL_MARGIN);
     rootLayout->setSpacing(G_PANEL_SPACING);
 
-    // ---------- 一级：水笔 ----------
-    m_penButton = createLevel1Button(G_ICON_PEN, static_cast<int>(SK::Tool::Pen));
+    m_penButton = createLevel1Button(G_ICON_PEN, tr("水笔"), static_cast<int>(SK::Tool::Pen));
     rootLayout->addWidget(m_penButton);
-    m_penParam = createStrokeParam(G_PEN_SPEC);
-    rootLayout->addWidget(m_penParam);
 
-    // ---------- 一级：荧光笔 ----------
-    m_highlighterButton = createLevel1Button(G_ICON_HIGHLIGHTER, static_cast<int>(SK::Tool::Highlighter));
+    m_highlighterButton = createLevel1Button(G_ICON_HIGHLIGHTER, tr("荧光笔"),
+                                             static_cast<int>(SK::Tool::Highlighter));
     rootLayout->addWidget(m_highlighterButton);
-    m_highlighterParam = createStrokeParam(G_HIGHLIGHTER_SPEC);
-    rootLayout->addWidget(m_highlighterParam);
 
-    // ---------- 一级：几何（二级图形行 + 三级参数区） ----------
-    m_geometryButton = createLevel1Button(G_ICON_GEOMETRY, G_GEOMETRY_BUTTON_ID);
+    m_geometryButton = createLevel1Button(G_ICON_GEOMETRY, tr("几何"), G_GEOMETRY_BUTTON_ID);
     rootLayout->addWidget(m_geometryButton);
 
-    m_geometryRow = new QWidget(this);
-    auto* geometryRowLayout = new QHBoxLayout(m_geometryRow);
-    geometryRowLayout->setContentsMargins(0, 0, 0, 0);
-    geometryRowLayout->setSpacing(G_GEOMETRY_ROW_SPACING);
-    geometryRowLayout->addWidget(createLevel2Button(G_ICON_LINE, SK::Tool::Line));
-    geometryRowLayout->addWidget(createLevel2Button(G_ICON_ARROW, SK::Tool::Arrow));
-    geometryRowLayout->addWidget(createLevel2Button(G_ICON_SQUARE, SK::Tool::Rectangle));
-    geometryRowLayout->addWidget(createLevel2Button(G_ICON_CIRCLE, SK::Tool::Ellipse));
-    m_geometryRow->hide();
-    rootLayout->addWidget(m_geometryRow);
+    m_textButton = createLevel1Button(G_ICON_TEXT, tr("文字"), static_cast<int>(SK::Tool::Text));
+    rootLayout->addWidget(m_textButton);
 
-    // 三级参数区：每个图形独立参数区，展开时仅显示当前图形对应者
+    m_mosaicButton = createLevel1Button(G_ICON_MOSAIC, tr("马赛克"),
+                                        static_cast<int>(SK::Tool::Mosaic));
+    rootLayout->addWidget(m_mosaicButton);
+
+    // stretch 吸收面板底部剩余空间：按钮列顶部对齐，底部留白
+    rootLayout->addStretch();
+
+    // ---------- 二三级内容：统一创建，延迟装入弹出框体页栈 ----------
+    // 参数页/二级页先以工具栏为父创建（读 QSettings 初始化状态），
+    // 首次显示弹出框体时由 ensurePopoutPanel 重新挂到页栈（addWidget 自动 reparent）
+    m_penParam = createStrokeParam(G_PEN_SPEC);
+    m_highlighterParam = createStrokeParam(G_HIGHLIGHTER_SPEC);
+    m_geometryPage = createGeometryPage();
+    m_textParam = createTextParam();
+    m_mosaicParam = createMosaicParam();
+
+    // 几何图形参数页：每个图形独立一页，按固定顺序装入页栈
     m_shapeParams.insert(static_cast<int>(SK::Tool::Line), createStrokeParam(G_LINE_SPEC));
     m_shapeParams.insert(static_cast<int>(SK::Tool::Arrow), createStrokeParam(G_ARROW_SPEC));
     m_shapeParams.insert(static_cast<int>(SK::Tool::Rectangle), createStrokeParam(G_RECT_SPEC));
     m_shapeParams.insert(static_cast<int>(SK::Tool::Ellipse), createStrokeParam(G_ELLIPSE_SPEC));
-    for (QWidget* shapeParam : std::as_const(m_shapeParams))
-    {
-        rootLayout->addWidget(shapeParam);
-    }
-
-    // ---------- 一级：文字 ----------
-    m_textButton = createLevel1Button(G_ICON_TEXT, static_cast<int>(SK::Tool::Text));
-    rootLayout->addWidget(m_textButton);
-    m_textParam = createTextParam();
-    rootLayout->addWidget(m_textParam);
-
-    // ---------- 一级：马赛克 ----------
-    m_mosaicButton = createLevel1Button(G_ICON_MOSAIC, static_cast<int>(SK::Tool::Mosaic));
-    rootLayout->addWidget(m_mosaicButton);
-    m_mosaicParam = createMosaicParam();
-    rootLayout->addWidget(m_mosaicParam);
-
-    // stretch 吸收面板底部剩余空间：参数区展开时紧贴按钮下方，收起时留白
-    rootLayout->addStretch();
 
     // 一级/二级点击分发：idClicked 仅在用户点击时触发，程序 setChecked 不会误入
     connect(m_level1Group, &QButtonGroup::idClicked, this, &AnnotationToolBar::onLevel1Clicked);
@@ -321,7 +372,8 @@ void AnnotationToolBar::setupUi()
         onLevel2Clicked(static_cast<SK::Tool>(groupId));
     });
 
-    // 应用持久化的默认工具（仅 UI 状态，不发射信号；截屏完成时 restoreDefaultTool 会再同步）
+    // 应用持久化的默认工具（仅 UI 高亮，不发射信号、不弹框体；
+    // 截屏完成时 restoreDefaultTool 会再同步并弹出对应参数框体）
     const QString defaultToolName = m_settings->value(G_KEY_DEFAULT_TOOL,
                                                       QStringLiteral("pen")).toString();
     if (defaultToolName.compare(QStringLiteral("geometry"), Qt::CaseInsensitive) == 0)
@@ -330,33 +382,42 @@ void AnnotationToolBar::setupUi()
                                                        QStringLiteral("line")).toString();
         m_currentGeometryShape = shapeFromName(geometryName);
         m_currentSceneTool = m_currentGeometryShape;
-        expandGeometryArea();
+        m_geometryButton->setChecked(true);
+        setLevel2Checked(m_currentGeometryShape);
     }
     else
     {
         m_currentSceneTool = toolFromName(defaultToolName);
-        applyToolExpansion(m_currentSceneTool);
+        setLevel1Checked(m_currentSceneTool);
     }
 }
 
-SK::ToolButton* AnnotationToolBar::createLevel1Button(const QString& iconResource, int groupId)
+SK::ToolButton* AnnotationToolBar::createLevel1Button(const QString& iconResource,
+                                                      const QString& toolTipText,
+                                                      int groupId)
 {
     auto* toolButton = new SK::ToolButton(this);
     toolButton->setIcon(QIcon(iconResource));
     toolButton->setIconSize(QSize(G_TOOL_ICON_SIZE, G_TOOL_ICON_SIZE));
     toolButton->setCheckable(true);
-    // 单图标无三态变体：ToolButton 非三态时按普通按钮绘制，高亮交给 QSS
+    // 单图标无三态变体：ToolButton 非三态时按普通按钮绘制，高亮交给全局 QSS
     toolButton->setToolButtonStyle(Qt::ToolButtonIconOnly);
     toolButton->setObjectName(QStringLiteral("annotationToolButton"));
     toolButton->setAutoRaise(true);
     toolButton->setFixedSize(G_TOOL_BUTTON_SIZE, G_TOOL_BUTTON_SIZE);
+
+    // tooltip：ToolButton 默认拦截 QEvent::ToolTip，显式放行后 setToolTip 生效
+    toolButton->setToolTip(toolTipText);
+    toolButton->setToolTipEnabled(false);
 
     // 以 Tool 枚举值（几何用专用 id）作为组内 id，便于点击分发
     m_level1Group->addButton(toolButton, groupId);
     return toolButton;
 }
 
-SK::ToolButton* AnnotationToolBar::createLevel2Button(const QString& iconResource, SK::Tool shape)
+SK::ToolButton* AnnotationToolBar::createLevel2Button(const QString& iconResource,
+                                                      const QString& toolTipText,
+                                                      SK::Tool shape)
 {
     auto* toolButton = new SK::ToolButton(this);
     toolButton->setIcon(QIcon(iconResource));
@@ -366,6 +427,10 @@ SK::ToolButton* AnnotationToolBar::createLevel2Button(const QString& iconResourc
     toolButton->setObjectName(QStringLiteral("annotationToolButton"));
     toolButton->setAutoRaise(true);
     toolButton->setFixedSize(G_TOOL_BUTTON_SIZE, G_TOOL_BUTTON_SIZE);
+
+    // tooltip：ToolButton 默认拦截 QEvent::ToolTip，显式放行后 setToolTip 生效
+    toolButton->setToolTip(toolTipText);
+    toolButton->setToolTipEnabled(false);
 
     // 以图形 Tool 枚举值作为组内 id，便于 onLevel2Clicked 反查
     m_level2Group->addButton(toolButton, static_cast<int>(shape));
@@ -403,8 +468,19 @@ QWidget* AnnotationToolBar::createColorRow(const QVector<QColor>& palette,
         colorButton->setObjectName(QStringLiteral("colorSwatch"));
         colorButton->setFixedSize(G_COLOR_SWATCH_SIZE, G_COLOR_SWATCH_SIZE);
         colorButton->setToolTip(colorName);
-        // 色块背景色由按钮级样式表填充（QToolButton 无内置背景色属性）
-        colorButton->setStyleSheet(QStringLiteral("background-color: %1;").arg(colorName));
+        // 色块为功能控件，样式元素级内联（背景色 + 圆形 + checked 紫色边框）；
+        // 不用工具栏私有 QSS，checked 边框与全局紫色系（#8B7AB8）保持一致
+        colorButton->setStyleSheet(QStringLiteral(R"(
+QToolButton#colorSwatch {
+    background-color: %1;
+    border: 1px solid rgba(0, 0, 0, 0.25);
+    border-radius: 10px;
+    padding: 0px;
+}
+QToolButton#colorSwatch:checked {
+    border: 2px solid #8B7AB8;
+}
+)").arg(colorName));
         colorGroup->addButton(colorButton, colorIndex);
         colorLayout->addWidget(colorButton);
 
@@ -442,12 +518,32 @@ QWidget* AnnotationToolBar::createSliderRow(int minValue, int maxValue, int init
     slider->setObjectName(QStringLiteral("paramSlider"));
     slider->setRange(minValue, maxValue);
     slider->setValue(initialValue);
+    // 滑块为功能控件，样式元素级内联（轨道/进度/手柄，进度与手柄用全局紫色系）
+    slider->setStyleSheet(QStringLiteral(R"(
+QSlider#paramSlider::groove:horizontal {
+    height: 4px;
+    background: rgba(0, 0, 0, 0.15);
+    border-radius: 2px;
+}
+QSlider#paramSlider::sub-page:horizontal {
+    background: #B5A5D1;
+    border-radius: 2px;
+}
+QSlider#paramSlider::handle:horizontal {
+    width: 14px;
+    height: 14px;
+    margin: -5px 0;
+    border-radius: 7px;
+    background: #8B7AB8;
+}
+)"));
 
     // 数值标签无单位文字，固定宽度避免位数变化导致滑块跳动
     auto* valueLabel = new QLabel(QString::number(initialValue), rowWidget);
     valueLabel->setObjectName(QStringLiteral("sliderValueLabel"));
     valueLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
     valueLabel->setFixedWidth(G_SLIDER_VALUE_LABEL_WIDTH);
+    valueLabel->setStyleSheet(QStringLiteral("color: #333333;"));
 
     rowLayout->addWidget(slider, 1);
     rowLayout->addWidget(valueLabel);
@@ -504,7 +600,7 @@ QWidget* AnnotationToolBar::createStrokeParam(const StrokeParamSpec& spec)
         paramLayout->addWidget(fillCheck);
     }
 
-    // 手风琴：初始收起，由展开逻辑决定何时显示
+    // 初始隐藏：装入弹出框体页栈后由页栈管理可见性
     paramWidget->hide();
     return paramWidget;
 }
@@ -550,7 +646,7 @@ QWidget* AnnotationToolBar::createTextParam()
         m_settings->setValue(G_KEY_TEXT_FONT_FAMILY, font.family());
     });
 
-    // 手风琴：初始收起，由展开逻辑决定何时显示
+    // 初始隐藏：装入弹出框体页栈后由页栈管理可见性
     paramWidget->hide();
     return paramWidget;
 }
@@ -577,9 +673,26 @@ QWidget* AnnotationToolBar::createMosaicParam()
         m_settings->setValue(G_KEY_MOSAIC_WIDTH, value);
     });
 
-    // 手风琴：初始收起，由展开逻辑决定何时显示
+    // 初始隐藏：装入弹出框体页栈后由页栈管理可见性
     paramWidget->hide();
     return paramWidget;
+}
+
+QWidget* AnnotationToolBar::createGeometryPage()
+{
+    auto* pageWidget = new QWidget(this);
+    auto* pageLayout = new QHBoxLayout(pageWidget);
+    pageLayout->setContentsMargins(0, 0, 0, 0);
+    pageLayout->setSpacing(G_GEOMETRY_ROW_SPACING);
+
+    pageLayout->addWidget(createLevel2Button(G_ICON_LINE, tr("直线"), SK::Tool::Line));
+    pageLayout->addWidget(createLevel2Button(G_ICON_ARROW, tr("箭头"), SK::Tool::Arrow));
+    pageLayout->addWidget(createLevel2Button(G_ICON_SQUARE, tr("方框"), SK::Tool::Rectangle));
+    pageLayout->addWidget(createLevel2Button(G_ICON_CIRCLE, tr("圆"), SK::Tool::Ellipse));
+
+    // 初始隐藏：装入弹出框体页栈后由页栈管理可见性
+    pageWidget->hide();
+    return pageWidget;
 }
 
 void AnnotationToolBar::setCurrentTool(SK::Tool tool)
@@ -590,21 +703,24 @@ void AnnotationToolBar::setCurrentTool(SK::Tool tool)
     case SK::Tool::Arrow:
     case SK::Tool::Rectangle:
     case SK::Tool::Ellipse:
-        // 几何图形：记录当前图形并展开几何一级 + 二级行 + 三级参数
+        // 几何图形：记录当前图形并展开「几何一级 + 二级图形 + 该图形参数页」
         m_currentGeometryShape = tool;
         m_currentSceneTool = tool;
-        expandGeometryArea();
+        m_geometryButton->setChecked(true);
+        setLevel2Checked(tool);
+        showPopoutPanel(m_shapePageIndex.value(static_cast<int>(tool), G_PAGE_GEOMETRY));
         break;
     case SK::Tool::Pen:
     case SK::Tool::Highlighter:
     case SK::Tool::Text:
     case SK::Tool::Mosaic:
         m_currentSceneTool = tool;
-        applyToolExpansion(tool);
+        setLevel1Checked(tool);
+        showPopoutPanel(pageIndexOfTool(tool));
         break;
     default:
-        // Select 等非工具栏工具：仅全部收起，不改变高亮与工具状态
-        hideAllExpanded();
+        // Select 等非工具栏工具：仅收起弹出框体，不改变高亮与工具状态
+        hidePopoutPanel();
         return;
     }
 
@@ -614,8 +730,8 @@ void AnnotationToolBar::setCurrentTool(SK::Tool tool)
 
 void AnnotationToolBar::collapseExpanded()
 {
-    // 保留一级按钮与当前工具，仅折叠二三级区域
-    hideAllExpanded();
+    // 保留一级/二级按钮与当前工具，仅隐藏弹出框体
+    hidePopoutPanel();
 }
 
 void AnnotationToolBar::restoreDefaultTool()
@@ -637,15 +753,28 @@ void AnnotationToolBar::onLevel1Clicked(int groupId)
 {
     if (groupId == G_GEOMETRY_BUTTON_ID)
     {
-        // 几何：只展开二级行 + 当前图形三级参数，不发射 toolChanged
-        expandGeometryArea();
+        // 几何：写回默认工具「几何组」，不发射 toolChanged（尚未确定具体图形）。
+        // 已选中具体图形时直接弹其参数页（快捷调参），否则弹二级选择页。
+        m_settings->setValue(G_KEY_DEFAULT_TOOL, QStringLiteral("geometry"));
+        if (isGeometryTool(m_currentSceneTool))
+        {
+            const int shapePage = m_shapePageIndex.value(
+                static_cast<int>(m_currentSceneTool), G_PAGE_GEOMETRY);
+            showPopoutPanel(shapePage);
+        }
+        else
+        {
+            showPopoutPanel(G_PAGE_GEOMETRY);
+            setLevel2Checked(m_currentGeometryShape);
+        }
         return;
     }
 
-    // 具体工具：展开其参数区并通知外部切换工具
+    // 具体工具：写回默认工具、弹出其参数框体并通知外部切换工具
     const SK::Tool tool = static_cast<SK::Tool>(groupId);
     m_currentSceneTool = tool;
-    applyToolExpansion(tool);
+    m_settings->setValue(G_KEY_DEFAULT_TOOL, toolNameOf(tool));
+    showPopoutPanel(pageIndexOfTool(tool));
     Q_EMIT toolChanged(tool);
 }
 
@@ -653,71 +782,136 @@ void AnnotationToolBar::onLevel2Clicked(SK::Tool shape)
 {
     m_currentGeometryShape = shape;
     m_currentSceneTool = shape;
-    expandGeometryArea();
+    // 点几何二级图形：写回默认几何图形，弹该图形三级参数页并同步外部场景
+    m_settings->setValue(G_KEY_DEFAULT_GEOMETRY, shapeNameOf(shape));
+    showPopoutPanel(m_shapePageIndex.value(static_cast<int>(shape), G_PAGE_GEOMETRY));
     Q_EMIT toolChanged(shape);
 }
 
-void AnnotationToolBar::applyToolExpansion(SK::Tool tool)
+void AnnotationToolBar::setLevel1Checked(SK::Tool tool)
 {
-    hideAllExpanded();
     switch (tool)
     {
     case SK::Tool::Pen:
         m_penButton->setChecked(true);
-        m_penParam->setVisible(true);
         break;
     case SK::Tool::Highlighter:
         m_highlighterButton->setChecked(true);
-        m_highlighterParam->setVisible(true);
         break;
     case SK::Tool::Text:
         m_textButton->setChecked(true);
-        m_textParam->setVisible(true);
         break;
     case SK::Tool::Mosaic:
         m_mosaicButton->setChecked(true);
-        m_mosaicParam->setVisible(true);
         break;
     default:
-        // 几何图形由 expandGeometryArea 负责，此处不处理
+        // 几何由 setCurrentTool 的几何分支单独处理
         break;
     }
 }
 
-void AnnotationToolBar::expandGeometryArea()
+void AnnotationToolBar::setLevel2Checked(SK::Tool shape)
 {
-    hideAllExpanded();
-
-    // 高亮几何一级按钮并展开二级行
-    m_geometryButton->setChecked(true);
-    m_geometryRow->setVisible(true);
-
-    // 展开当前图形的三级参数区
-    QWidget* shapeParam = m_shapeParams.value(static_cast<int>(m_currentGeometryShape));
-    if (shapeParam != nullptr)
-    {
-        shapeParam->setVisible(true);
-    }
-
-    // 高亮对应的二级图形按钮
-    QAbstractButton* shapeButton = m_level2Group->button(static_cast<int>(m_currentGeometryShape));
+    QAbstractButton* shapeButton = m_level2Group->button(static_cast<int>(shape));
     if (shapeButton != nullptr)
     {
         shapeButton->setChecked(true);
     }
 }
 
-void AnnotationToolBar::hideAllExpanded()
+void AnnotationToolBar::ensurePopoutPanel()
 {
-    m_penParam->hide();
-    m_highlighterParam->hide();
-    m_geometryRow->hide();
-    for (QWidget* shapeParam : std::as_const(m_shapeParams))
+    if (m_popoutPanel != nullptr)
     {
-        shapeParam->hide();
+        return;
     }
-    m_textParam->hide();
-    m_mosaicParam->hide();
+
+    // 弹出框体挂到工具栏的父控件（m_centralStack）上，与工具栏同级悬浮，
+    // 这样才能叠加在中央栈页面上而不被视口遮挡
+    QWidget* host = parentWidget();
+    if (host == nullptr)
+    {
+        host = this;
+    }
+    m_popoutPanel = new PopoutPanel(host);
+    m_popoutPanel->hide();
+    m_popoutPanel->setFixedWidth(G_POPOUT_WIDTH);
+
+    auto* panelLayout = new QVBoxLayout(m_popoutPanel);
+    panelLayout->setContentsMargins(G_PANEL_MARGIN, G_PANEL_MARGIN, G_PANEL_MARGIN, G_PANEL_MARGIN);
+    panelLayout->setSpacing(G_PANEL_SPACING);
+
+    // 页栈：参数页/二级页统一入栈，addWidget 会自动把页面重新挂到页栈
+    m_popoutStack = new QStackedWidget(m_popoutPanel);
+    panelLayout->addWidget(m_popoutStack);
+
+    m_popoutStack->addWidget(m_penParam);            // G_PAGE_PEN
+    m_popoutStack->addWidget(m_highlighterParam);    // G_PAGE_HIGHLIGHTER
+    m_popoutStack->addWidget(m_geometryPage);        // G_PAGE_GEOMETRY
+    m_popoutStack->addWidget(m_textParam);           // G_PAGE_TEXT
+    m_popoutStack->addWidget(m_mosaicParam);         // G_PAGE_MOSAIC
+
+    // 几何图形参数页：按固定顺序（直线/箭头/方框/圆）从 G_PAGE_SHAPE_BASE 起排
+    const QVector<SK::Tool> shapeOrder = {
+        SK::Tool::Line, SK::Tool::Arrow, SK::Tool::Rectangle, SK::Tool::Ellipse
+    };
+    int shapePage = G_PAGE_SHAPE_BASE;
+    for (const SK::Tool shape : shapeOrder)
+    {
+        m_popoutStack->addWidget(m_shapeParams.value(static_cast<int>(shape)));
+        m_shapePageIndex.insert(static_cast<int>(shape), shapePage);
+        ++shapePage;
+    }
+}
+
+void AnnotationToolBar::showPopoutPanel(int pageIndex)
+{
+    ensurePopoutPanel();
+    m_popoutStack->setCurrentIndex(pageIndex);
+
+    // 高度随当前页内容自适应：页高 + 面板上下内边距
+    QWidget* currentPage = m_popoutStack->currentWidget();
+    if (currentPage != nullptr)
+    {
+        const int pageHeight = currentPage->sizeHint().height();
+        m_popoutPanel->setFixedHeight(pageHeight + 2 * G_PANEL_MARGIN);
+    }
+
+    updatePopoutGeometry();
+    m_popoutPanel->show();
+    m_popoutPanel->raise();
+}
+
+void AnnotationToolBar::hidePopoutPanel()
+{
+    if (m_popoutPanel != nullptr)
+    {
+        m_popoutPanel->hide();
+    }
+}
+
+void AnnotationToolBar::updatePopoutGeometry()
+{
+    if (m_popoutPanel == nullptr)
+    {
+        return;
+    }
+
+    // 默认贴着工具栏右侧弹出（父子坐标系：pos() 即工具栏在父控件中的位置）
+    const int panelX = pos().x() + width() + G_POPOUT_OFFSET;
+    const int panelY = pos().y();
+
+    // 防御性钳制：工具栏贴父控件右边缘时，框体可能越界，左移保证完整可见
+    int finalX = panelX;
+    if (parentWidget() != nullptr)
+    {
+        const int hostRight = parentWidget()->width() - G_POPOUT_OFFSET;
+        if ((finalX + m_popoutPanel->width()) > hostRight)
+        {
+            finalX = qMax(0, hostRight - m_popoutPanel->width());
+        }
+    }
+    m_popoutPanel->move(finalX, panelY);
 }
 
 QColor AnnotationToolBar::loadColor(const QString& settingsKey, const QColor& fallbackColor)
