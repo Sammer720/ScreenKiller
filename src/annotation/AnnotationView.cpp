@@ -26,10 +26,10 @@ constexpr qreal G_ZOOM_FACTOR = 1.15;
 constexpr qreal G_MAX_SCALE = 5.0;
 /// \brief 缩放下限（10%）
 constexpr qreal G_MIN_SCALE = 0.1;
-/// \brief 视图背景色（浅灰蓝）
-const int G_BG_R = 245;
+/// \brief 视图背景色（与全局 QSS 主背景 #FBF7EF 一致，空白区与主界面统一）
+const int G_BG_R = 251;
 const int G_BG_G = 247;
-const int G_BG_B = 250;
+const int G_BG_B = 239;
 /// \brief 平移边界占图片对应边长的比例（允许图片边缘移出视口的最大幅度）
 constexpr qreal G_PAN_MARGIN_RATIO = 0.25;
 /// \brief 中键「点击」与「拖动」的判定阈值（像素，曼哈顿距离）
