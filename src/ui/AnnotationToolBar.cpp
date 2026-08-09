@@ -76,15 +76,13 @@ constexpr int G_COLOR_SWATCH_SIZE = 24;
 /// 色块间距（像素）
 constexpr int G_SWATCH_SPACING = 8;
 /// 滑块数值标签固定宽度（像素，避免位数变化导致滑块跳动）
-constexpr int G_SLIDER_VALUE_LABEL_WIDTH = 24;
+constexpr int G_SLIDER_VALUE_LABEL_WIDTH = 50;
 /// 几何一级按钮专用互斥组 id（Tool 枚举无 Geometry 值，几何是工具栏内部一级分组）
 constexpr int G_GEOMETRY_BUTTON_ID = 100;
 
 // ============================ 弹出框体常量 ============================
 /// 参数三级框体固定宽度（像素）
-/// 需容纳颜色行（6 色块 24px + 5×8px 间距 = 184px + 左右内边距）与
-/// 滑块行（滑块 + 右侧数值标签带 px/pt 单位），避免最右侧数字标签被裁剪
-constexpr int G_POPOUT_WIDTH = 232;
+constexpr int G_POPOUT_WIDTH = 200;
 /// 几何二级框体固定宽度（像素，4 个 36px 按钮竖排 + 左右内边距，与一级工具栏同宽语言）
 constexpr int G_GEOMETRY_PANEL_WIDTH = G_TOOL_BUTTON_SIZE + 2 * G_PANEL_MARGIN;
 /// 框体与工具栏/框体之间的间距（像素）
@@ -719,6 +717,7 @@ QWidget* AnnotationToolBar::createSliderRow(int minValue, int maxValue, int init
     auto* rowLayout = new QHBoxLayout(rowWidget);
     rowLayout->setContentsMargins(0, 0, 0, 0);
     rowLayout->setSpacing(G_PANEL_SPACING);
+    rowWidget->setLayout(rowLayout);
 
     auto* slider = new QSlider(Qt::Horizontal, rowWidget);
     slider->setObjectName(QStringLiteral("paramSlider"));
@@ -734,7 +733,7 @@ QWidget* AnnotationToolBar::createSliderRow(int minValue, int maxValue, int init
     QString labelText = QString::number(initialValue);
     if (!unit.isEmpty())
     {
-        labelText = QStringLiteral("%1 %2").arg(initialValue).arg(unit);
+        labelText = QStringLiteral("%1%2").arg(initialValue).arg(unit);
     }
     auto* valueLabel = new QLabel(labelText, rowWidget);
     valueLabel->setObjectName(QStringLiteral("sliderValueLabel"));
@@ -756,7 +755,7 @@ QWidget* AnnotationToolBar::createSliderRow(int minValue, int maxValue, int init
         }
         else
         {
-            valueLabel->setText(QStringLiteral("%1 %2").arg(value).arg(unit));
+            valueLabel->setText(QStringLiteral("%1%2").arg(value).arg(unit));
         }
     });
 
@@ -934,6 +933,7 @@ QWidget* AnnotationToolBar::createMosaicParam(ParamHandles* handlesOut)
     auto* paramLayout = new QVBoxLayout(paramWidget);
     paramLayout->setContentsMargins(0, 0, 0, 0);
     paramLayout->setSpacing(G_PANEL_SPACING);
+    paramWidget->setLayout(paramLayout);
 
     // 马赛克取背景色，无颜色设置，仅尺寸滑块（10~60，右侧数值带 px 单位）
     const int storedWidth = loadInt(G_KEY_MOSAIC_WIDTH, G_DEFAULT_MOSAIC_WIDTH);
@@ -970,6 +970,7 @@ QWidget* AnnotationToolBar::createGeometryPage()
     auto* pageLayout = new QVBoxLayout(pageWidget);
     pageLayout->setContentsMargins(0, 0, 0, 0);
     pageLayout->setSpacing(G_PANEL_SPACING);
+    pageWidget->setLayout(pageLayout);
 
     // 4 个图形按钮竖向排列，与一级工具栏按钮列视觉一致
     pageLayout->addWidget(createLevel2Button(G_ICON_LINE, tr("直线"), SK::Tool::Line));
