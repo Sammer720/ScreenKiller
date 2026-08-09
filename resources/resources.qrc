@@ -28,6 +28,15 @@
         <file>icons/mouse_mid.png</file>
         <file>icons/mouse_right.png</file>
         <file>icons/help.png</file>
+        <file>icons/pen.png</file>
+        <file>icons/highlighter.png</file>
+        <file>icons/geometry.png</file>
+        <file>icons/line.png</file>
+        <file>icons/arrow.png</file>
+        <file>icons/circle.png</file>
+        <file>icons/square.png</file>
+        <file>icons/text.png</file>
+        <file>icons/mosaic.png</file>
         <file>fonts/LXGWWenKaiLite-Regular.ttf</file>
         <file>fonts/FiraCode-Regular.ttf</file>
     </qresource>
