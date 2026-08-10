@@ -4,6 +4,8 @@
  */
 #include "PenItem.h"
 
+#include <algorithm>
+
 #include <QPainter>
 #include <QStyleOptionGraphicsItem>
 
@@ -71,9 +73,9 @@ QRectF PenItem::boundingRect() const
     return pathRect.adjusted(-margin, -margin, margin, margin);
 }
 
-void PenItem::paint(QPainter* painter,
-                    const QStyleOptionGraphicsItem* option,
-                    QWidget* widget)
+void PenItem::paintContent(QPainter* painter,
+                           const QStyleOptionGraphicsItem* option,
+                           QWidget* widget)
 {
     Q_UNUSED(option);
     Q_UNUSED(widget);
@@ -82,6 +84,63 @@ void PenItem::paint(QPainter* painter,
     painter->setPen(m_pen);
     painter->setBrush(Qt::NoBrush);
     painter->drawPath(m_path);
+}
+
+QRectF PenItem::resizeRect() const
+{
+    // Fail-Fast：无控制点时返回空矩形
+    if (m_points.isEmpty())
+    {
+        return QRectF();
+    }
+
+    // 1. 以首点为初始极值
+    qreal minX = m_points[0].x();
+    qreal maxX = minX;
+    qreal minY = m_points[0].y();
+    qreal maxY = minY;
+
+    // 2. 遍历全部控制点，累积求得 x / y 方向的极值
+    for (const QPointF& point : m_points)
+    {
+        minX = std::min(minX, point.x());
+        maxX = std::max(maxX, point.x());
+        minY = std::min(minY, point.y());
+        maxY = std::max(maxY, point.y());
+    }
+
+    // 3. 极值之差即为外接矩形尺寸
+    return QRectF(minX, minY, maxX - minX, maxY - minY);
+}
+
+void PenItem::setResizeRect(const QRectF& newRect)
+{
+    // 1. 先取当前外接矩形作为缩放基准
+    QRectF oldRect = resizeRect();
+    qreal oldWidth  = oldRect.width();
+    qreal oldHeight = oldRect.height();
+
+    // 2. 除零保护：任一方向过短说明图元近似退化，无法缩放
+    if ((oldWidth < G_MIN_RESIZE_SIZE) || (oldHeight < G_MIN_RESIZE_SIZE))
+    {
+        return;
+    }
+
+    // 3. 计算 x / y 两个方向的缩放比例
+    qreal scaleX = newRect.width() / oldWidth;
+    qreal scaleY = newRect.height() / oldHeight;
+
+    // 4. 所有控制点相对旧矩形原点偏移后按比例变换，再平移到新矩形原点
+    QVector<QPointF> newPoints;
+    newPoints.reserve(m_points.size());
+    for (const QPointF& point : m_points)
+    {
+        newPoints.append(QPointF(
+            newRect.x() + (point.x() - oldRect.x()) * scaleX,
+            newRect.y() + (point.y() - oldRect.y()) * scaleY
+        ));
+    }
+    setPoints(newPoints);
 }
 
 QVariant PenItem::itemChange(GraphicsItemChange change, const QVariant& value)

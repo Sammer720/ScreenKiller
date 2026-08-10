@@ -17,9 +17,12 @@
 #pragma once
 
 #include <QObject>
+#include <QRectF>
 #include <memory>
 #include <qtmetamacros.h>
 #include <vector>
+
+#include "items/BaseAnnotationItem.h"
 
 namespace SK {
 
@@ -52,6 +55,39 @@ public:
     {
         return {};
     }
+};
+
+/**
+ * @brief 图元缩放命令（记录缩放前后的 resizeRect）
+ *
+ * 拖拽缩放手柄完成一次缩放后压入撤销栈：
+ *   - undo() 恢复缩放前的几何（旧 resizeRect）
+ *   - redo() 应用缩放后的几何（新 resizeRect）
+ * 图元指针仅记录不持有所有权，图元生命周期由场景管理。
+ */
+class ResizeItemCommand : public ICommand
+{
+public:
+    /**
+     * @brief 构造函数
+     * @param item 被缩放的图元指针，不允许为空
+     * @param oldRect 缩放前的 resizeRect
+     * @param newRect 缩放后的 resizeRect
+     */
+    ResizeItemCommand(SK::BaseAnnotationItem* item,
+                      const QRectF& oldRect,
+                      const QRectF& newRect);
+
+    /// @brief 撤销：恢复图元缩放前的几何
+    void undo() override;
+
+    /// @brief 重做：将图元应用到缩放后的几何
+    void redo() override;
+
+private:
+    SK::BaseAnnotationItem* m_item;  ///< 被缩放的图元（不持有所有权）
+    QRectF m_oldRect;                ///< 缩放前的 resizeRect
+    QRectF m_newRect;                ///< 缩放后的 resizeRect
 };
 
 /**

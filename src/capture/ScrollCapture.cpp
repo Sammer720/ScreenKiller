@@ -120,6 +120,16 @@ ScrollCapture::~ScrollCapture()
     m_stitcher = nullptr;
 }
 
+void ScrollCapture::setMaxFrames(int n)
+{
+    m_maxFrames = n;
+}
+
+void ScrollCapture::setScrollPxThreshold(int px)
+{
+    m_scrollPxThreshold = px;
+}
+
 // =============================================================================
 // 启动
 // =============================================================================

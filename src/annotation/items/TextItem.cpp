@@ -7,9 +7,6 @@
 #include <QPainter>
 #include <QStyleOptionGraphicsItem>
 #include <QFontMetricsF>
-#include <QGraphicsSceneMouseEvent>
-#include <QInputDialog>
-#include <QLineEdit>
 #include <QGraphicsScene>
 
 namespace SK {
@@ -17,12 +14,10 @@ namespace SK {
 namespace {
 /// \brief 文字外扩边距（避免紧贴边框）
 constexpr qreal G_TEXT_MARGIN = 4.0;
+/// \brief 缩放时的最小字号保护（pt），避免文字小到不可读
+constexpr qreal G_MIN_FONT_SIZE = 6.0;
 /// \brief 文字默认背景色（半透明黄色高亮）
 const QColor G_TEXT_BG_COLOR(255, 255, 0, 80);
-/// \brief 文字对话框标题
-const QString G_EDIT_DIALOG_TITLE = QStringLiteral("编辑文字");
-/// \brief 文字对话框输入提示
-const QString G_EDIT_DIALOG_LABEL = QStringLiteral("文字内容：");
 }
 
 TextItem::TextItem(QGraphicsItem* parent)
@@ -30,8 +25,35 @@ TextItem::TextItem(QGraphicsItem* parent)
 {
     setFlag(ItemIsSelectable, true);
     setFlag(ItemIsMovable, true);
+    // 必须发送几何变化通知，否则移动时不触发 itemChange 的
+    // ItemPositionChange 分支，位置 clamp 对文字图元无效
+    setFlag(ItemSendsGeometryChanges, true);
     setPenColor(Qt::black);
     setBrushColor(G_TEXT_BG_COLOR);
+}
+
+void TextItem::setText(const QString& text)
+{
+    m_text = text;
+    prepareGeometryChange();
+    update();
+}
+
+QString TextItem::text() const
+{
+    return m_text;
+}
+
+void TextItem::setFont(const QFont& font)
+{
+    m_font = font;
+    prepareGeometryChange();
+    update();
+}
+
+QFont TextItem::font() const
+{
+    return m_font;
 }
 
 QRectF TextItem::boundingRect() const
@@ -41,13 +63,15 @@ QRectF TextItem::boundingRect() const
     // 空文本时用一个空格占位，否则 boundingRect 返回空
     QString measureText = m_text.isEmpty() ? QStringLiteral(" ") : m_text;
     QRectF textRect = fm.boundingRect(measureText);
-    return textRect.adjusted(-G_TEXT_MARGIN, -G_TEXT_MARGIN,
-                              G_TEXT_MARGIN,  G_TEXT_MARGIN);
+    // 图元原点作为文字起点，向右下扩展，与内联输入框位置对齐
+    return QRectF(0.0, 0.0,
+                  textRect.width() + 2.0 * G_TEXT_MARGIN,
+                  textRect.height() + 2.0 * G_TEXT_MARGIN);
 }
 
-void TextItem::paint(QPainter* painter,
-                     const QStyleOptionGraphicsItem* option,
-                     QWidget* widget)
+void TextItem::paintContent(QPainter* painter,
+                            const QStyleOptionGraphicsItem* option,
+                            QWidget* widget)
 {
     Q_UNUSED(option);
     Q_UNUSED(widget);
@@ -65,28 +89,46 @@ void TextItem::paint(QPainter* painter,
         painter->setPen(Qt::NoPen);
         painter->drawRect(itemBoundingRect);
     }
+
+    // 文字从原点右下方开始绘制，与输入框位置对齐
+    QFontMetricsF fm(m_font);
+    QString measureText = m_text.isEmpty() ? QStringLiteral(" ") : m_text;
+    QRectF textRect = fm.boundingRect(measureText);
+    QRectF drawRect(G_TEXT_MARGIN, G_TEXT_MARGIN,
+                    textRect.width(), textRect.height());
     painter->setPen(m_pen.color());
-    painter->drawText(itemBoundingRect, Qt::AlignLeft | Qt::AlignVCenter, m_text);
+    painter->drawText(drawRect, Qt::AlignLeft | Qt::AlignVCenter, m_text);
 }
 
-void TextItem::mouseDoubleClickEvent(QGraphicsSceneMouseEvent* event)
+QRectF TextItem::resizeRect() const
 {
-    if (event->button() != Qt::LeftButton)
+    return boundingRect();
+}
+
+void TextItem::setResizeRect(const QRectF& newRect)
+{
+    // 1. 取旧包围盒高度作为缩放基准
+    QRectF oldRect = boundingRect();
+    qreal oldHeight = oldRect.height();
+
+    // 2. 旧高度过小说明文本几乎不可见，无法可靠缩放，直接放弃
+    if (oldHeight < G_MIN_RESIZE_SIZE)
     {
-        BaseAnnotationItem::mouseDoubleClickEvent(event);
         return;
     }
 
-    bool ok = false;
-    QString newText = QInputDialog::getText(
-        nullptr, G_EDIT_DIALOG_TITLE, G_EDIT_DIALOG_LABEL,
-        QLineEdit::Normal, m_text, &ok);
+    // 3. 按高度比例计算新字号，与拖拽手柄的纵向尺寸变化保持一致
+    qreal scaleFactor = newRect.height() / oldHeight;
+    QFont newFont = m_font;
+    qreal newSize = m_font.pointSizeF() * scaleFactor;
 
-    if (ok)
+    // 4. 最小字号保护，避免文字小到不可读
+    if (newSize < G_MIN_FONT_SIZE)
     {
-        setText(newText);
+        newSize = G_MIN_FONT_SIZE;
     }
-    event->accept();
+    newFont.setPointSizeF(newSize);
+    setFont(newFont);
 }
 
 } // namespace SK

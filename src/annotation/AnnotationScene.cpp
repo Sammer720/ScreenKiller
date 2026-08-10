@@ -6,16 +6,20 @@
 
 #include <QGraphicsPixmapItem>
 #include <QGraphicsSceneMouseEvent>
+#include <QFont>
+#include <QtGlobal>
 #include <QLineF>
 #include <QPainter>
 #include <QPixmap>
 #include <QPointF>
 #include <QVector>
 
+#include "AnnotationConstants.h"
 #include "items/ArrowItem.h"
 #include "items/BaseAnnotationItem.h"
 #include "items/EllipseItem.h"
 #include "items/HighlighterItem.h"
+#include "items/MosaicItem.h"
 #include "items/PenItem.h"
 #include "items/RectangleItem.h"
 #include "items/TextItem.h"
@@ -58,41 +62,132 @@ public:
     /// @return 描述字符串
     QString description() const override { return QStringLiteral("AddItem"); }
 
+    /// @brief 析构：命令被撤销栈淘汰或场景销毁时释放图元所有权
+    ///
+    /// 图元所有权在场景与命令之间转移：命令最后一次执行（redo 后或从未撤销）
+    /// 时图元仍在场景中，需先 removeItem 再由本命令释放；
+    /// 若最后一次执行的是 undo，图元已被移出场景，直接释放即可。
+    ~AddItemCommand() override
+    {
+        // 图元仍被场景持有（未撤销或重做后）时先移除，再释放内存
+        if ((m_item != nullptr) && (m_item->scene() != nullptr))
+        {
+            m_scene->removeItem(m_item);
+        }
+        delete m_item;
+        m_item = nullptr;
+    }
+
 private:
     QGraphicsScene* m_scene;                 ///< 目标场景
     SK::BaseAnnotationItem* m_item;           ///< 待添加图元（所有权在 scene 与本命令间转移）
 };
 
 /**
- * @brief 移除图元命令
- *
- * redo 时将图元从场景移除，undo 时重新加入。
+ * @brief 将点限制在指定矩形范围内
+ * @param p 待限制的点
+ * @param rect 目标矩形
+ * @return 限制后的点；rect 为空时返回原值
  */
-class RemoveItemCommand : public SK::ICommand
+QPointF clampPointToRect(const QPointF& p, const QRectF& rect)
 {
-public:
-    /**
-     * @brief 构造函数
-     * @param scene 目标场景
-     * @param item 待移除的图元
-     */
-    RemoveItemCommand(QGraphicsScene* scene, SK::BaseAnnotationItem* item)
-        : m_scene(scene), m_item(item) {}
-
-    /// @brief 执行：将图元从场景移除
-    void redo() override { m_scene->removeItem(m_item); }
-
-    /// @brief 撤销：将图元重新加入场景
-    void undo() override { m_scene->addItem(m_item); }
-
-private:
-    QGraphicsScene* m_scene;                 ///< 目标场景
-    SK::BaseAnnotationItem* m_item;          ///< 待移除图元
-};
+    if (rect.isNull())
+    {
+        return p;
+    }
+    return QPointF(qBound(rect.left(), p.x(), rect.right()),
+                   qBound(rect.top(), p.y(), rect.bottom()));
+}
 
 } // namespace
 
 namespace SK {
+
+const QImage& AnnotationScene::backgroundImage() const
+{
+    return m_bgImage;
+}
+
+void AnnotationScene::setTool(Tool t)
+{
+    m_tool = t;
+}
+
+Tool AnnotationScene::tool() const
+{
+    return m_tool;
+}
+
+void AnnotationScene::setPenColor(const QColor& c)
+{
+    m_penColor = c;
+    // 填充色跟随画笔色：工具栏没有独立填充色选择器，
+    // 勾选填充时以当前画笔颜色填充（避免默认透明色导致看不见填充）
+    m_brushColor = c;
+}
+
+void AnnotationScene::setPenWidth(qreal w)
+{
+    // 用覆盖所有工具的全局最宽边界做防御性 clamp：
+    // 各工具真实上限由工具栏滑块边界（G_MAX_PEN_WIDTH 等）控制，
+    // 此处仅兜底防非法值，避免高上限工具（荧光笔 45 / 马赛克 65）被水笔边界截断
+    m_penWidth = qBound(G_MIN_ABS_WIDTH, w, G_MAX_ABS_WIDTH);
+}
+
+void AnnotationScene::setBrushColor(const QColor& c)
+{
+    m_brushColor = c;
+}
+
+void AnnotationScene::setBrushStyle(Qt::BrushStyle s)
+{
+    m_brushStyle = s;
+}
+
+QColor AnnotationScene::penColor() const
+{
+    return m_penColor;
+}
+
+qreal AnnotationScene::penWidth() const
+{
+    return m_penWidth;
+}
+
+QColor AnnotationScene::brushColor() const
+{
+    return m_brushColor;
+}
+
+Qt::BrushStyle AnnotationScene::brushStyle() const
+{
+    return m_brushStyle;
+}
+
+void AnnotationScene::setFontSize(qreal s)
+{
+    m_fontSize = qBound(G_MIN_FONT_SIZE, s, G_MAX_FONT_SIZE);
+}
+
+void AnnotationScene::setFontFamily(const QString& f)
+{
+    m_fontFamily = f;
+}
+
+qreal AnnotationScene::fontSize() const
+{
+    return m_fontSize;
+}
+
+QString AnnotationScene::fontFamily() const
+{
+    return m_fontFamily;
+}
+
+UndoStack* AnnotationScene::undoStack()
+{
+    return m_undoStack;
+}
 
 AnnotationScene::AnnotationScene(QObject* parent) : QGraphicsScene(parent)
 {
@@ -101,8 +196,17 @@ AnnotationScene::AnnotationScene(QObject* parent) : QGraphicsScene(parent)
             &AnnotationScene::historyChanged);
 }
 
+AnnotationScene::~AnnotationScene()
+{
+    // 先清空撤销栈：命令析构会在场景图元仍存活时完成 removeItem + delete，
+    // 避免 QGraphicsScene 基类析构删除场景图元后，命令再访问悬垂指针
+    m_undoStack->clear();
+}
+
 void AnnotationScene::loadImage(const QImage& image)
 {
+    // 新截图加载前清空旧标注图元与撤销栈，避免旧截图图素残留到新截图
+    clearAllAnnotations();
     m_bgImage = image;
     // 首次加载时创建背景图元
     if (m_bgItem == nullptr)
@@ -133,29 +237,31 @@ QImage AnnotationScene::exportImage()
     return outputImage;
 }
 
-void AnnotationScene::deleteSelected()
+void AnnotationScene::clearAllAnnotations()
 {
-    auto selectedItemsList = selectedItems();
-    // 没有选中项时直接返回
-    if (selectedItemsList.isEmpty())
+    // 先清空撤销栈：AddItemCommand 析构会为它持有的每个图元执行 removeItem + delete，
+    // 由命令完成图元的正确释放（命令是图元的所有权持有者）。
+    // 若先直接 delete 图元再清栈，命令析构时会对已释放指针调用 scene() 触发悬垂崩溃。
+    m_undoStack->clear();
+
+    // 清理未被任何撤销命令持有的图元（如绘制中的 m_currentItem），跳过背景图元
+    const QList<QGraphicsItem*> allItems = items();
+    for (QGraphicsItem* item : allItems)
     {
-        return;
-    }
-    for (QGraphicsItem* item : selectedItemsList)
-    {
-        auto* annotationItem = dynamic_cast<SK::BaseAnnotationItem*>(item);
-        if (annotationItem != nullptr)
+        if ((item == m_bgItem) || (item == nullptr))
         {
-            // 标注图元走撤销栈
-            m_undoStack->push(std::make_unique<RemoveItemCommand>(this, annotationItem));
+            continue;
         }
-        else
-        {
-            // 非标注图元直接删除
-            removeItem(item);
-            delete item;
-        }
+        removeItem(item);
+        delete item;
     }
+    // 复位创建状态指针，防止后续悬垂访问
+    m_currentItem = nullptr;
+}
+
+void AnnotationScene::setHighlighterAlpha(int alpha)
+{
+    m_highlighterAlpha = alpha;
 }
 
 // -----------------------------------------------------------------------------
@@ -177,7 +283,10 @@ void AnnotationScene::mousePressEvent(QGraphicsSceneMouseEvent* event)
         return;
     }
 
-    m_startPos = event->scenePos();
+    // 用户开始标注：通知外部（如工具栏收起二三级展开）
+    Q_EMIT annotationStarted();
+
+    m_startPos = clampPointToRect(event->scenePos(), sceneRect());
     beginCreateItem(m_tool, m_startPos);
 }
 
@@ -226,6 +335,11 @@ void AnnotationScene::beginCreateItem(Tool t, const QPointF& pos)
     {
         auto* arrowItem = new ArrowItem();
         arrowItem->setDrawArrow(t == Tool::Arrow);
+        if (t == Tool::Arrow)
+        {
+            // 箭头尺寸随线宽动态放大，避免粗线时箭头比例崩坏
+            arrowItem->setArrowSize(qMax(12.0, m_penWidth * 2.0 + 4.0));
+        }
         item = arrowItem;
         break;
     }
@@ -233,16 +347,25 @@ void AnnotationScene::beginCreateItem(Tool t, const QPointF& pos)
         item = new PenItem();
         break;
     case Tool::Highlighter:
-        item = new HighlighterItem();
+    {
+        auto* highlighterItem = new HighlighterItem();
+        highlighterItem->setAlpha(m_highlighterAlpha);
+        item = highlighterItem;
+        break;
+    }
+    case Tool::Mosaic:
+        item = new MosaicItem();
         break;
     case Tool::Text:
     {
-        // 文字直接在点击点创建一个空 TextItem，触发输入框
         auto* textItem = new TextItem();
+        QFont textFont(m_fontFamily, qRound(m_fontSize));
+        textItem->setFont(textFont);
+        textItem->setPenColor(m_penColor);
         textItem->setPos(pos);
-        textItem->setText(QStringLiteral("双击编辑"));
-        pushAddCommand(textItem);
-        // 模拟双击 -> 弹出输入框由 TextItem 自身处理
+        addItem(textItem);
+        // 不在这里入栈：等视图编辑器提交后由 commitTextItem 入栈
+        Q_EMIT textEditRequested(textItem);
         return;
     }
     default:
@@ -265,7 +388,7 @@ void AnnotationScene::beginCreateItem(Tool t, const QPointF& pos)
     m_currentItem = item;
 
     // 画笔类工具立即追加第一个点
-    if ((t == Tool::Pen) || (t == Tool::Highlighter))
+    if ((t == Tool::Pen) || (t == Tool::Highlighter) || (t == Tool::Mosaic))
     {
         auto* pen = dynamic_cast<PenItem*>(item);
         if (pen != nullptr)
@@ -284,7 +407,8 @@ void AnnotationScene::updateCreateItem(const QPointF& pos)
     }
 
     using namespace SK;
-    QPointF local = pos - m_currentItem->pos();
+    QPointF clampedPos = clampPointToRect(pos, sceneRect());
+    QPointF local = clampedPos - m_currentItem->pos();
 
     // 根据图元类型分发更新逻辑
     if (auto* rectItem = dynamic_cast<RectangleItem*>(m_currentItem))
@@ -336,6 +460,32 @@ void AnnotationScene::finalizeCreateItem()
 void AnnotationScene::pushAddCommand(SK::BaseAnnotationItem* item)
 {
     m_undoStack->push(std::make_unique<AddItemCommand>(this, item));
+}
+
+void AnnotationScene::commitTextItem(SK::TextItem* item, const QString& text)
+{
+    if (item == nullptr)
+    {
+        return;
+    }
+    const QString trimmed = text.trimmed();
+    if (trimmed.isEmpty())
+    {
+        discardTextItem(item);
+        return;
+    }
+    item->setText(trimmed);
+    pushAddCommand(item);
+}
+
+void AnnotationScene::discardTextItem(SK::TextItem* item)
+{
+    if (item == nullptr)
+    {
+        return;
+    }
+    removeItem(item);
+    delete item;
 }
 
 } // namespace SK

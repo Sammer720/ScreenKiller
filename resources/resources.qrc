@@ -5,14 +5,40 @@
         <file>icons/cut.png</file>
         <file>icons/cut_hover.png</file>
         <file>icons/scroll.png</file>
+        <file>icons/scroll_hover.png</file>
+        <file>icons/scroll_selected.png</file>
         <file>icons/full.png</file>
+        <file>icons/full_hover.png</file>
+        <file>icons/full_selected.png</file>
         <file>icons/window.png</file>
+        <file>icons/window_hover.png</file>
+        <file>icons/window_selected.png</file>
         <file>icons/frame.png</file>
+        <file>icons/frame_hover.png</file>
+        <file>icons/frame_selected.png</file>
         <file>icons/save.png</file>
         <file>icons/save_hover.png</file>
         <file>icons/minimize.png</file>
         <file>icons/minimize_hover.png</file>
         <file>icons/close.png</file>
         <file>icons/close_hover.png</file>
+        <file>icons/drop_down.png</file>
+        <file>icons/drop_down_clicked.png</file>
+        <file>icons/mouse_left.png</file>
+        <file>icons/mouse_mid.png</file>
+        <file>icons/mouse_right.png</file>
+        <file>icons/help.png</file>
+        <file>icons/pen.png</file>
+        <file>icons/highlighter.png</file>
+        <file>icons/geometry.png</file>
+        <file>icons/line.png</file>
+        <file>icons/arrow.png</file>
+        <file>icons/circle.png</file>
+        <file>icons/square.png</file>
+        <file>icons/text.png</file>
+        <file>icons/mosaic.png</file>
+        <file>icons/checked.png</file>
+        <file>fonts/LXGWWenKaiLite-Regular.ttf</file>
+        <file>fonts/FiraCode-Regular.ttf</file>
     </qresource>
 </RCC>

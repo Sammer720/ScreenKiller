@@ -31,9 +31,14 @@ public:
 
     /// @brief 返回包围盒（含画笔宽度边距）
     QRectF boundingRect() const override;
-    /// @brief 绘制路径
-    void paint(QPainter* painter, const QStyleOptionGraphicsItem* option,
-               QWidget* widget = nullptr) override;
+    /// @brief 绘制路径（NVI 内容绘制入口）
+    void paintContent(QPainter* painter, const QStyleOptionGraphicsItem* option,
+                      QWidget* widget = nullptr) override;
+    /// @brief 返回所有控制点的外接矩形，作为缩放手柄拖拽的基准
+    QRectF resizeRect() const override;
+    /// @brief 按比例变换所有控制点以适配新的外接矩形
+    /// @param newRect 目标外接矩形（由手柄拖拽产生）
+    void setResizeRect(const QRectF& newRect) override;
 
     /// @brief 追加一个控制点
     /// @param pt 局部坐标系下的点

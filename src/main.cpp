@@ -13,6 +13,7 @@
  */
 #include <QApplication>
 #include <QFile>
+#include <QFontDatabase>
 #include <QObject>
 #include <QSettings>
 
@@ -30,6 +31,10 @@ const QString G_ORG_NAME = QStringLiteral("Sammer");
 const QString G_APP_VERSION = QStringLiteral("1.1.0");
 /// \brief QSS 样式表资源路径
 const QString G_QSS_PATH = QStringLiteral(":/styles/windows11_light.qss");
+/// \brief 霞鹜文楷 Lite 字体资源路径（中文）
+const QString G_FONT_WENKAI_PATH = QStringLiteral(":/fonts/LXGWWenKaiLite-Regular.ttf");
+/// \brief Fira Code 字体资源路径（英文/代码，支持连写）
+const QString G_FONT_FIRACODE_PATH = QStringLiteral(":/fonts/FiraCode-Regular.ttf");
 
 } // namespace
 
@@ -57,6 +62,18 @@ int main(int argc, char* argv[])
     }
     // 关闭主窗口后仍驻留托盘
     QApplication::setQuitOnLastWindowClosed(false);
+
+    // 加载内置字体（QSS 中 font-family 依赖这些字体，必须先于样式/窗口加载）
+    const int wenkaiId = QFontDatabase::addApplicationFont(G_FONT_WENKAI_PATH);
+    const int firaId = QFontDatabase::addApplicationFont(G_FONT_FIRACODE_PATH);
+    if (wenkaiId < 0)
+    {
+        SK_LOG_WARN() << "Failed to load font: " << G_FONT_WENKAI_PATH;
+    }
+    if (firaId < 0)
+    {
+        SK_LOG_WARN() << "Failed to load font: " << G_FONT_FIRACODE_PATH;
+    }
 
     // 加载样式
     SK::Style::loadAppStyleSheet(G_QSS_PATH);
