@@ -175,11 +175,6 @@ public:
     UndoStack* undoStack();
 
     /**
-     * @brief 删除当前选中的图元
-     */
-    void deleteSelected();
-
-    /**
      * @brief 清空所有标注图元并清空撤销栈（背景图元保留）
      *
      * 新截图加载前调用，移除场景中除背景外的全部图元（含标注图元与

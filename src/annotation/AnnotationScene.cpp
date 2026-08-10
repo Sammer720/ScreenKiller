@@ -84,33 +84,6 @@ private:
 };
 
 /**
- * @brief 移除图元命令
- *
- * redo 时将图元从场景移除，undo 时重新加入。
- */
-class RemoveItemCommand : public SK::ICommand
-{
-public:
-    /**
-     * @brief 构造函数
-     * @param scene 目标场景
-     * @param item 待移除的图元
-     */
-    RemoveItemCommand(QGraphicsScene* scene, SK::BaseAnnotationItem* item)
-        : m_scene(scene), m_item(item) {}
-
-    /// @brief 执行：将图元从场景移除
-    void redo() override { m_scene->removeItem(m_item); }
-
-    /// @brief 撤销：将图元重新加入场景
-    void undo() override { m_scene->addItem(m_item); }
-
-private:
-    QGraphicsScene* m_scene;                 ///< 目标场景
-    SK::BaseAnnotationItem* m_item;          ///< 待移除图元
-};
-
-/**
  * @brief 将点限制在指定矩形范围内
  * @param p 待限制的点
  * @param rect 目标矩形
@@ -262,31 +235,6 @@ QImage AnnotationScene::exportImage()
     render(&painter, QRectF(), sceneRect());
     painter.end();
     return outputImage;
-}
-
-void AnnotationScene::deleteSelected()
-{
-    auto selectedItemsList = selectedItems();
-    // 没有选中项时直接返回
-    if (selectedItemsList.isEmpty())
-    {
-        return;
-    }
-    for (QGraphicsItem* item : selectedItemsList)
-    {
-        auto* annotationItem = dynamic_cast<SK::BaseAnnotationItem*>(item);
-        if (annotationItem != nullptr)
-        {
-            // 标注图元走撤销栈
-            m_undoStack->push(std::make_unique<RemoveItemCommand>(this, annotationItem));
-        }
-        else
-        {
-            // 非标注图元直接删除
-            removeItem(item);
-            delete item;
-        }
-    }
 }
 
 void AnnotationScene::clearAllAnnotations()
