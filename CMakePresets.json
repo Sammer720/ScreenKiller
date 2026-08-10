@@ -80,5 +80,11 @@
             "name": "msvc-release-vs",
             "configurePreset": "msvc-release-vs"
         }
+    ],
+    "packagePresets": [
+        {
+            "name": "msvc-release",
+            "configurePreset": "msvc-release"
+        }
     ]
 }

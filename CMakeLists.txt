@@ -387,10 +387,12 @@ install(FILES "${CMAKE_SOURCE_DIR}/LICENSE"
          DESTINATION .)
 
 # =============================================================================
-# CPack 打包配置（NSIS 安装器 + ZIP portable 双产物）
+# CPack 打包配置（跨平台：安装包 + ZIP 便携包双产物）
+#   Windows → NSIS 安装器 + ZIP 便携包
+#   macOS   → DragNDrop(.dmg) + ZIP 便携包
+#   Linux   → DEB + RPM 安装包 + ZIP 便携包
+# 各平台共用的通用字段在下方统一设置；平台专属字段按分支配置。
 # =============================================================================
-set(CPACK_GENERATOR "NSIS;ZIP")
-set(CPACK_SYSTEM_NAME "win64")
 set(CPACK_PACKAGE_NAME "ScreenKiller")
 set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
 set(CPACK_PACKAGE_VENDOR "Sammer")
@@ -398,31 +400,56 @@ set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Windows 长截图与图像标注工具")
 set(CPACK_PACKAGE_INSTALL_DIRECTORY "ScreenKiller")
 set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_SOURCE_DIR}/LICENSE")
 set(CPACK_OUTPUT_FILE_PREFIX "${CMAKE_SOURCE_DIR}/build/dist")
+# portable.txt 标记仅注入 ZIP 便携包，安装包不含（见 portable_marker.cmake）
 set(CPACK_INSTALL_SCRIPTS "${CMAKE_SOURCE_DIR}/cmake/portable_marker.cmake")
 
-# 图标（程序 exe 图标通过 .rc 嵌入 app.ico，此处设置安装器/卸载器 exe 图标 + 向导品牌图）
-set(CPACK_NSIS_MUI_ICON "${CMAKE_SOURCE_DIR}/resources/icons/app_installer.ico")
-set(CPACK_NSIS_MUI_UNIICON "${CMAKE_SOURCE_DIR}/resources/icons/app_installer.ico")
-# CPACK_PACKAGE_ICON 需要 BMP 在构建目录可访问（NSIS File 命令使用原生路径格式）
-configure_file(
-    "${CMAKE_SOURCE_DIR}/resources/icons/app_installer.bmp"
-    "${CMAKE_BINARY_DIR}/app_installer.bmp"
-    COPYONLY
-)
-file(TO_NATIVE_PATH "${CMAKE_BINARY_DIR}/app_installer.bmp" _nsis_bmp_path)
-set(CPACK_PACKAGE_ICON "${_nsis_bmp_path}")
+if(WIN32)
+    # ---------- Windows：NSIS 安装器 + ZIP 便携包 ----------
+    set(CPACK_GENERATOR "NSIS;ZIP")
+    set(CPACK_SYSTEM_NAME "win64")
 
-# NSIS 特定
-set(CPACK_NSIS_DISPLAY_NAME "ScreenKiller")
-set(CPACK_NSIS_PACKAGE_NAME "ScreenKiller ${PROJECT_VERSION}")
-set(CPACK_NSIS_MODIFY_PATH OFF)
-set(CPACK_NSIS_ENABLE_UNINSTALL_BEFORE_INSTALL ON)
-set(CPACK_NSIS_EXECUTABLES_DIRECTORY ".")
-set(CPACK_NSIS_MANIFEST_DPI_AWARE ON)
-set(CPACK_NSIS_CREATE_ICONS_EXTRA
-     "CreateShortCut '$SMPROGRAMS\\\\$STARTMENU_FOLDER\\\\ScreenKiller.lnk' '$INSTDIR\\\\ScreenKiller.exe'")
-set(CPACK_NSIS_DELETE_ICONS_EXTRA
-     "Delete '$SMPROGRAMS\\\\$STARTMENU_FOLDER\\\\ScreenKiller.lnk'")
+    # 图标（程序 exe 图标通过 .rc 嵌入 app.ico，此处设置安装器/卸载器 exe 图标 + 向导品牌图）
+    set(CPACK_NSIS_MUI_ICON "${CMAKE_SOURCE_DIR}/resources/icons/app_installer.ico")
+    set(CPACK_NSIS_MUI_UNIICON "${CMAKE_SOURCE_DIR}/resources/icons/app_installer.ico")
+    # CPACK_PACKAGE_ICON 需要 BMP 在构建目录可访问（NSIS File 命令使用原生路径格式）
+    configure_file(
+        "${CMAKE_SOURCE_DIR}/resources/icons/app_installer.bmp"
+        "${CMAKE_BINARY_DIR}/app_installer.bmp"
+        COPYONLY
+    )
+    file(TO_NATIVE_PATH "${CMAKE_BINARY_DIR}/app_installer.bmp" _nsis_bmp_path)
+    set(CPACK_PACKAGE_ICON "${_nsis_bmp_path}")
+
+    # NSIS 特定
+    set(CPACK_NSIS_DISPLAY_NAME "ScreenKiller")
+    set(CPACK_NSIS_PACKAGE_NAME "ScreenKiller ${PROJECT_VERSION}")
+    set(CPACK_NSIS_MODIFY_PATH OFF)
+    set(CPACK_NSIS_ENABLE_UNINSTALL_BEFORE_INSTALL ON)
+    set(CPACK_NSIS_EXECUTABLES_DIRECTORY ".")
+    set(CPACK_NSIS_MANIFEST_DPI_AWARE ON)
+    set(CPACK_NSIS_CREATE_ICONS_EXTRA
+         "CreateShortCut '$SMPROGRAMS\\\\$STARTMENU_FOLDER\\\\ScreenKiller.lnk' '$INSTDIR\\\\ScreenKiller.exe'")
+    set(CPACK_NSIS_DELETE_ICONS_EXTRA
+         "Delete '$SMPROGRAMS\\\\$STARTMENU_FOLDER\\\\ScreenKiller.lnk'")
+elseif(APPLE)
+    # ---------- macOS：DragNDrop(.dmg) + ZIP 便携包 ----------
+    set(CPACK_GENERATOR "DragNDrop;ZIP")
+    set(CPACK_SYSTEM_NAME "darwin")
+    set(CPACK_DMG_DISPLAY_NAME "ScreenKiller ${PROJECT_VERSION}")
+    # 图标为可选：仅当存在 app.icns 时才设置，避免未来首次移植时因缺文件而报错
+    if(EXISTS "${CMAKE_SOURCE_DIR}/resources/icons/app.icns")
+        set(CPACK_PACKAGE_ICON "${CMAKE_SOURCE_DIR}/resources/icons/app.icns")
+    endif()
+elseif(UNIX)
+    # ---------- Linux：DEB + RPM 安装包 + ZIP 便携包 ----------
+    set(CPACK_GENERATOR "DEB;RPM;ZIP")
+    set(CPACK_SYSTEM_NAME "linux")
+    set(CPACK_DEBIAN_PACKAGE_MAINTAINER "Sammer")
+    set(CPACK_DEBIAN_PACKAGE_DESCRIPTION "Windows 长截图与图像标注工具")
+    set(CPACK_RPM_PACKAGE_LICENSE "MIT")
+    set(CPACK_RPM_PACKAGE_VENDOR "Sammer")
+endif()
+
 include(CPack)
 
 # =============================================================================
