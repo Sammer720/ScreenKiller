@@ -7,7 +7,7 @@
 ![qt](https://img.shields.io/badge/Qt-6.11%2B-green)
 ![opencv](https://img.shields.io/badge/OpenCV-5.x-green)
 
-> **💾 直接下载发布版**：可从发行页面下载 **v1.1.0** 安装包 (`ScreenKiller_1.1.0_Win_x64_Setup.exe`) 一键安装，或下载绿色免安装版压缩包 (`ScreenKiller_1.1.0_Win_x64_Portable.zip`) 解压即用，无需配置编译环境。
+> **💾 直接下载发布版**：可从发行页面下载 **v1.2.0** 安装包 (`ScreenKiller-1.2.0-win64.exe`) 一键安装，或下载绿色免安装版压缩包 (`ScreenKiller-1.2.0-win64.zip`) 解压即用，无需配置编译环境。
 
 ---
 
@@ -27,8 +27,8 @@
 **推荐：设置用户环境变量**
 
 ```powershell
-[Environment]::SetEnvironmentVariable("Qt6_DIR",    "F:/ForVS/Qt/6.11.1/msvc2022_64", "User")
-[Environment]::SetEnvironmentVariable("OpenCV_DIR", "F:/ForVS/OpenCV/opencv/build",   "User")
+[Environment]::SetEnvironmentVariable("Qt6_DIR",    "你Qt的根目录/6.11.1/msvc2022_64", "User")
+[Environment]::SetEnvironmentVariable("OpenCV_DIR", "你OpenCV的根目录/opencv/build",   "User")
 ```
 
 设置后重启终端/VSCode。也可在 `CMakeUserPresets.json` 的 `cacheVariables` 中填写（模板见 `CMakeUserPresets.json.example`）。
@@ -44,9 +44,12 @@ cmake --build --preset user-debug
 ./build/user-debug/bin/ScreenKiller.exe
 
 # Release 构建 + 打包
-cmake --preset msvc-release
-cmake --build --preset msvc-release
-cpack -C Release          # 生成 NSIS 安装器 + ZIP 便携包，输出至 build/dist/
+cmake --preset user-release
+cmake --build --preset user-release
+cpack --preset package_release   # 生成 NSIS 安装器 + ZIP 便携包，输出至 build/dist/
+
+# 指定发布版本号（覆盖包内版本与文件名）
+cpack --preset package_release -D CPACK_PACKAGE_VERSION=1.2.0 -D CPACK_PACKAGE_FILE_NAME=ScreenKiller-1.2.0-win64
 ```
 
 **VSCode：**
@@ -54,6 +57,7 @@ cpack -C Release          # 生成 NSIS 安装器 + ZIP 便携包，输出至 bu
 2. `Ctrl+Shift+P` → `CMake: Select a Kit` → `Visual Studio ... amd64`
 3. `F7` 构建，`F5` 调试运行
 4. `Ctrl+Shift+B` 可选构建/清理任务
+5. **打包**：`Ctrl+Shift+P` → `Tasks: Run Task` → 「CMake: 打包 (Release)」，弹出输入框填版本号 → 自动配置+构建+生成安装包与便携包
 
 > **注意**：PATH 混入 w64devkit/mingw 会劫持 `link.exe`，CMakePresets 已内置 `CMAKE_LINKER=link` / `CMAKE_AR=lib` 规避。
 
@@ -75,7 +79,7 @@ cpack -C Release          # 生成 NSIS 安装器 + ZIP 便携包，输出至 bu
 | **滚动截屏** | 框选后手动滚动 | 框选区域 → 提示浮窗 → 手动滚动目标窗口 → 按 Enter 或点「完成」→ 自动拼接长图 |
 
 - **全局快捷键**：`Ctrl + Alt + A`
-- **模式切换**：点击截屏按钮右侧下拉箭头，或按 `Tab` 键循环
+- **模式切换**：点击截屏按钮右侧模式选择按钮，或按 `Tab` 键循环
 
 ### 2.2 标注画布
 
@@ -83,19 +87,21 @@ cpack -C Release          # 生成 NSIS 安装器 + ZIP 便携包，输出至 bu
 
 | 操作 | 效果 |
 |------|------|
-| 左键拖拽 | 用当前工具绘制图元 |
-| 点击图元 | 选中 |
-| 拖动选中图元 | 移动位置 |
-| `Delete` | 删除选中图元 |
+| 左键 | 用当前工具在截图上绘制 |
+| 右键 | 复制当前已编辑的截图到粘贴板 |
+| 点击中键 | 恢复视图到100%缩放大小，并居中显示 |
+| 滚动中键 | 缩放画布 |
+| 拖动中键 | 平移视图，查看画布 |
+| `Delete + Delete` | 清除所有编辑内容 |
 | `Ctrl+Z` / `Ctrl+Y` | 撤销 / 重做 |
-| `Ctrl + 滚轮` | 缩放画布 |
-| 双击文字图元 | 编辑文字内容 |
 
-**标注工具**：选择、矩形、椭圆、箭头、直线、自由画笔、荧光笔、文字。
+
+**标注工具**：水笔、荧光笔、马赛克、文字和几何图案（直线、箭头、方框和圆）。
 
 ### 2.3 系统托盘
 
-- **关闭窗口** → 最小化到系统托盘
+- **关闭窗口** → 退出程序，结束进程
+- **最小化窗口** → 缩到系统托盘，托盘右键显示主窗口
 - **右键托盘图标** → 显示主窗口 / 截屏 / 退出
 
 ---
@@ -110,9 +116,19 @@ cpack -C Release          # 生成 NSIS 安装器 + ZIP 便携包，输出至 bu
 | 全屏截屏 | 一键抓取主屏全部内容 |
 | 窗口截屏 | 鼠标悬停高亮目标窗口，点击即抓 |
 | 滚动截屏 | 手动滚动驱动抓帧 + OpenCV 模板匹配拼接，输出长图 |
-| 标注画布 | 矩形 / 椭圆 / 直线 / 箭头 / 画笔 / 荧光笔 / 文字，独立 Item 可编辑 |
+| 标注画布 | 矩形 / 椭圆 / 直线 / 箭头 / 水笔 / 荧光笔 / 马赛克 / 文字 |
+| 标注工具栏 | 悬浮手风琴工具栏，集中工具选择 + 颜色（标注/荧光笔双色板）/ 线宽 / 透明度 / 字体滑块，`QSettings` 持久化 |
 | 撤销重做 | 自研轻量 Undo/Redo 栈，`Ctrl+Z` / `Ctrl+Y` |
 | 全局快捷键 | `Ctrl+Alt+A` 唤起截屏 |
+
+**v1.2.0 主要更新（自 v1.1.0）：**
+- 新增 **马赛克** 标注工具，涂抹模糊遮盖
+- 新增 **标注工具栏**（悬浮手风琴 UI）与 `ToolButton` 子控件，集中管理工具与参数
+- 标注 / 荧光笔 **双色板** 拆分；颜色 / 线宽 / 透明度 / 字体滑块参数，`QSettings` 持久化
+- 文字标注改为 **点击即输入**（虚线框编辑覆盖层）
+- 图元属性边界 clamp 约束（`AnnotationConstants`）
+- 新增多个涉及截图绘制的快捷键
+- 新手引导提示面板，可收缩
 
 ---
 
@@ -139,7 +155,7 @@ ScreenKiller/
 │   ├── icons/                     # 18 个图标文件（含安装器图标）
 │   └── translations/              # 国际化（待填充）
 │
-├── src/                           # ≈ 55 个源文件
+├── src/                           # ≈ 66 个源文件
 │   ├── main.cpp                   # 程序入口
 │   │
 │   ├── app/                       # 应用框架
@@ -158,28 +174,35 @@ ScreenKiller/
 │   │   ├── ImageStitcher.h/.cpp   # OpenCV 模板匹配垂直拼接
 │   │   └── StitchWorker.h/.cpp    # 拼接工作线程封装
 │   │
-│   ├── annotation/                # 标注画布（3 组 + 7 种图元）
+│   ├── annotation/                # 标注画布（4 组 + 8 种图元）
 │   │   ├── AnnotationView.h/.cpp  # QGraphicsView 子类
 │   │   ├── AnnotationScene.h/.cpp # QGraphicsScene 子类，工具分发
 │   │   ├── UndoStack.h/.cpp       # 自研撤销重做栈
-│   │   └── items/                 # 7 种标注图元
-│   │       ├── BaseAnnotationItem.h           # 抽象基类
-│   │       ├── {Rectangle|Ellipse|Arrow|Pen|  # 矩形/椭圆/箭头/画笔/
-│   │       │   Highlighter|Text}Item.h/.cpp   # 荧光笔/文字
+│   │   ├── AnnotationConstants.h  # 标注属性边界常量（图元 clamp）
+│   │   └── items/                 # 8 种标注图元
+│   │       ├── BaseAnnotationItem.h/.cpp     # 抽象基类
+│   │       ├── {Rectangle|Ellipse|Arrow|Pen| # 矩形/椭圆/箭头/水笔/
+│   │       │    Highlighter|Mosaic|Text}Item # 荧光笔/马赛克/文字
+│   │       │    .h/.cpp
 │   │
 │   ├── platform/                  # Windows API 封装（3 组）
 │   │   ├── WinApi.h/.cpp          # 窗口/输入/屏幕工具函数集
 │   │   ├── MouseWheelHook.h/.cpp  # WH_MOUSE_LL 全局滚轮钩子
 │   │   └── KeyboardHook.h/.cpp    # WH_KEYBOARD_LL 全局键盘钩子
 │   │
-│   ├── ui/                        # UI 组件（2 组）
+│   ├── ui/                        # UI 组件（4 组）
 │   │   ├── ToolBar.h/.cpp         # 顶部工具栏（兼标题栏拖拽）
+│   │   ├── AnnotationToolBar.h/.cpp  # 标注工具栏（悬浮手风琴）
+│   │   ├── GuidePanel.h/.cpp      # 悬浮引导面板
 │   │   └── Style.h/.cpp           # Windows 11 浅色 QSS 加载
+│   │
+│   ├── sub_widget/                # 子控件（1 组）
+│   │   └── ToolButton.h/.cpp      # 手风琴工具按钮（tooltip / 启闭循环）
 │   │
 │   └── utils/                     # 工具（3 组）
 │       ├── ImageUtils.h/.cpp      # QImage ↔ cv::Mat 互转
 │       ├── Logger.h/.cpp          # QLoggingCategory 分类日志宏
-│       └── MessageBox.h           # 中文按钮消息框（header-only）
+│       └── MessageBox.h/.cpp      # 中文按钮消息框
 │
 ├── build/                         # 构建输出（含 dist/ 打包产物）
 ├── tests/                         # 单元测试（待填充）
@@ -239,8 +262,9 @@ BaseAnnotationItem : QGraphicsItem   ← 统一管理 QPen / QBrush
   ├── RectangleItem    — 矩形
   ├── EllipseItem      — 椭圆
   ├── ArrowItem        — 箭头（直线 + 箭头头）
-  ├── PenItem          — 自由画笔（点序列）
+  ├── PenItem          — 水笔（点序列）
   │   └── HighlighterItem — 荧光笔（继承 PenItem 复用路径）
+  ├── MosaicItem       — 马赛克（涂抹模糊遮盖）
   └── TextItem         — 文字
 ```
 
@@ -253,50 +277,27 @@ BaseAnnotationItem : QGraphicsItem   ← 统一管理 QPen / QBrush
 
 ### 5.5 打包分发
 
-- Release 构建后 `cpack -C Release` 同时生成两种产物：
-  - **NSIS 安装器**（`.exe`）— 创建开始菜单快捷方式，支持卸载
-  - **ZIP 便携包**（`.zip`）— 内含 `portable.txt` 标记文件，配置写入同级目录而非注册表
+- Release 构建后通过 `cpack --preset package_release` 打包，**跨平台**按平台生成对应产物（`CMakeLists.txt` 按 `WIN32 / APPLE / UNIX` 自动选择生成器）：
+  - **Windows**：NSIS 安装器（`.exe`）+ ZIP 便携包（`.zip`）
+  - **macOS**：DragNDrop（`.dmg`）+ ZIP 便携包
+  - **Linux**：DEB + RPM 安装包 + ZIP 便携包
+- ZIP 便携包内含 `portable.txt` 标记文件，配置写入同级目录而非注册表
+- VSCode 任务「CMake: 打包 (Release)」运行时**强制输入发布版本号**，动态覆盖 `CPACK_PACKAGE_VERSION` / `CPACK_PACKAGE_FILE_NAME`
 - `windows/app.rc` 嵌入 exe 图标（`.ico`）和版本信息（`VS_VERSIONINFO`）
 - `windeployqt` + `copy_directory` 自动部署 Qt/OpenCV DLL 到输出目录
 
 ---
 
-## 6. 常见问题
+## 6. 后续路线图
 
-### 6.1 clangd 报红「找不到 QtWidgets/QWidget」
-检查 `.clangd` 中的 include 路径，确认已执行 `cmake --preset user-debug` 生成 `compile_commands.json`，重启 clangd。
-
-### 6.2 链接错误「无法找到 Qt6Core.lib」
-`Qt6_DIR` 未指向带 `lib/cmake/Qt6/` 的目录（如 `F:/ForVS/Qt/6.11.1/msvc2022_64`）。
-
-### 6.3 CMake 报「Could NOT find OpenCV」
-`OpenCV_DIR` 未设置或路径不正确。CMakeLists.txt 已自动处理 vc 子目录细化，用户只需指向 build 根目录。
-
-### 6.4 CMake 报「Could NOT find OpenCV (missing: features2d)」
-OpenCV 官方 Windows 包采用 opencv_world 单体库，本项目用 `find_package(OpenCV REQUIRED)`（**不带 COMPONENTS**），链接 `${OpenCV_LIBS}` 即可。
-
-### 6.5 CMake 报「cl is not a full path」
-未加载 MSVC 环境。VSCode 选 `Visual Studio ... amd64` Kit；命令行需在「VS x64 Native Tools Command Prompt」中执行。
-
-### 6.6 链接器被 w64devkit/mingw 劫持
-CMakePresets 已内置 `CMAKE_LINKER=link` / `CMAKE_AR=lib` 规避，确保 `cmake.useCMakePresets: "always"`。
-
-### 6.7 运行时崩溃「无法定位程序输入点 opencv_core500.dll」
-CMakeLists.txt 已配置 `copy_directory` 自动拷贝 OpenCV DLL；未生效时可手动将 `x64/vc16/bin` 加入 PATH。
-
----
-
-## 7. 后续路线图
-
-- [ ] 工具属性面板（颜色 / 线宽 / 字体）接入 ToolBar
-- [ ] 图元缩放手柄（Corner handle）
+- [x] 工具属性面板（颜色 / 线宽 / 字体）接入标注工具栏
 - [ ] ORB 特征点匹配作为模板匹配的回退方案（接口已预留）
-- [ ] 长图导出为 PNG / JPEG / PDF
+- [ ] 图片保存提供 PNG / JPEG / WEBP 格式选择
 - [ ] 国际化（i18n）支持（translations/ 目录已就绪）
-- [ ] 多显示器分别截屏
+- [ ] 多平台兼容 （macOS / Linux / Windows）
 
 ---
 
-## 8. 许可证
+## 7. 许可证
 
 MIT License · Copyright (c) 2026 Sammer
