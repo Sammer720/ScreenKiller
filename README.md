@@ -292,7 +292,6 @@ BaseAnnotationItem : QGraphicsItem   ← 统一管理 QPen / QBrush
 
 - [x] 工具属性面板（颜色 / 线宽 / 字体）接入标注工具栏
 - [ ] ORB 特征点匹配作为模板匹配的回退方案（接口已预留）
-- [ ] 图片保存提供 PNG / JPEG / WEBP 格式选择
 - [ ] 国际化（i18n）支持（translations/ 目录已就绪）
 - [ ] 多平台兼容 （macOS / Linux / Windows）
 
