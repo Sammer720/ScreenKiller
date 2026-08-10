@@ -21,14 +21,32 @@
 
 /* ---------- 全局 ---------- */
 * {
-    font-family: "Microsoft YaHei UI", "Segoe UI Variable Text", "Segoe UI", sans-serif;
-    font-size: 13px;
+    /* 字体栈：Fira Code 优先匹配英文/数字/代码字符（支持连写），
+     * 中文字符在 Fira Code 中缺失时回退到霞鹜文楷 Lite，
+     * 再兜底微软雅黑 / Segoe UI。 */
+    font-family: "Fira Code", "LXGW WenKai Lite", "Microsoft YaHei UI", "Segoe UI Variable Text", "Segoe UI", sans-serif;
+    font-size: 18px;
     outline: none;
 }
 
 QWidget {
     background: #FBF7EF;
     color: #3A3357;
+}
+
+/* 引导面板：子控件透明背景，让面板的半透明自绘背景透出
+ * 注意：全局 QWidget 规则会被 QLabel 继承，若不覆盖则子控件
+ * 的不透明背景色会盖住 GuidePanel 的 paintEvent 半透明圆角。 */
+QWidget#guidePanel,
+QWidget#guidePanel QLabel {
+    background: transparent;
+}
+
+/* 消息框：弹窗字号 14px，避免继承全局 18px 导致弹窗文字偏大
+ * 仅限定 QMessageBox 内部的标签与按钮，不影响工具栏等普通按钮。 */
+QMessageBox QLabel,
+QMessageBox QPushButton {
+    font-size: 16px;
 }
 
 QWidget:disabled {
@@ -93,10 +111,25 @@ QToolButton:disabled {
     border: 1px solid transparent;
 }
 
+/* ---------- 标注工具栏工具按钮（一级/二级，正方形 36x36） ----------
+ * 覆盖通用 QToolButton 的 padding(6px 14px) 与 min-height，使 36x36 窄按钮
+ * 图标不被水平 padding 压扁；checked/hover 仍走通用紫色系。 */
+QToolButton#annotationToolButton {
+    min-width: 36px;
+    min-height: 36px;
+    padding: 0px;
+}
+
 QToolButton::menu-indicator {
-    image: none;
-    subcontrol-position: right center;
+    image: url(:/icons/drop_down.png);
+    subcontrol-position: right bottom;
     width: 8px;
+    height: 8px;
+}
+
+QToolButton::menu-indicator:open {
+    image: url(:/icons/drop_down_clicked.png);
+    subcontrol-position: right bottom;
 }
 
 /* ---------- 主截屏按钮（蓝紫强调） ---------- */
@@ -212,11 +245,13 @@ QGraphicsView#annotationView {
     border: 1px solid #D9CFC1;
     border-radius: 8px;
     padding: 4px;
+    /* 确保子控件（GuidePanel）不被视口边框和内边距遮挡 */
+    /* padding 仅影响内部布局，叠加的浮动面板需在 move 时避开此区域 */
 }
 
 QLabel#placeholderLabel {
     color: #6B5B95;
-    font-size: 16px;
+    font-size: 21px;
     font-weight: 500;
     background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
         stop:0 #FBF7EF,
@@ -313,6 +348,140 @@ QPushButton:default {
         stop:1 #6B5B95);
     color: #FFFFFF;
     border: 1px solid #5A4B85;
+}
+
+/* ---------- 滑块（标注参数区的尺寸/字号滑块） ---------- */
+QSlider#paramSlider::groove:horizontal {
+    height: 4px;
+    background: #E5D9C5;
+    border-radius: 2px;
+}
+
+QSlider#paramSlider::sub-page:horizontal {
+    background: #B5A5D1;
+    border-radius: 2px;
+}
+
+QSlider#paramSlider::handle:horizontal {
+    width: 14px;
+    height: 14px;
+    margin: -5px 0;
+    border-radius: 7px;
+    background: #8B7AB8;
+}
+
+QSlider#paramSlider::handle:horizontal:hover {
+    background: #6B5B95;
+}
+
+QSlider#paramSlider::handle:horizontal:disabled {
+    background: #C9BEDC;
+}
+
+/* ---------- 复选框（方框/圆填充开关） ---------- */
+QCheckBox {
+    spacing: 6px;
+    color: #3A3357;
+}
+
+QCheckBox::indicator {
+    width: 16px;
+    height: 16px;
+    border: 1px solid #D9CFC1;
+    border-radius: 4px;
+    background: #FFFFFF;
+}
+
+QCheckBox::indicator:hover {
+    border: 1px solid #B5A5D1;
+}
+
+QCheckBox::indicator:checked {
+    background: #8B7AB8;
+    border: 1px solid #8B7AB8;
+    image: url(:/icons/checked.png);
+}
+
+QCheckBox::indicator:disabled {
+    background: #F0EAF5;
+    border: 1px solid #E5D9C5;
+}
+
+/* ---------- 标注工具栏弹出框体控件（紫色系，与主界面一致） ----------
+ * 仅作用于标注工具栏的弹出框体（PopoutPanel，objectName = annotationPopoutPanel）
+ * 及其内部控件。v8：恢复紫色系（v7 曾误改暖棕系），滑块/勾选框与主界面视觉
+ * 统一；勾选框勾选时显示勾号图标（:/icons/checked.png）。
+ * 背景设为 transparent：框体背景由 PopoutPanel::paintEvent 自绘半透明圆角，
+ * 子控件（含二级页/参数页/行列容器）若不透明会盖住自绘背景，故需显式透出。 */
+QWidget#annotationPopoutPanel,
+QWidget#annotationPopoutPanel QLabel,
+QWidget#annotationPopoutPanel QCheckBox,
+QWidget#annotationPopoutPanel QSlider,
+QWidget#annotationParamStack,
+QWidget#annotationParamPage,
+QWidget#annotationParamRow,
+QWidget#annotationGeometryPage {
+    background: transparent;
+}
+
+QWidget#annotationPopoutPanel QLabel#sliderValueLabel {
+    color: #3A3357;
+}
+
+QWidget#annotationPopoutPanel QSlider#paramSlider::groove:horizontal {
+    height: 4px;
+    background: #D9CCEE;
+    border-radius: 2px;
+}
+
+QWidget#annotationPopoutPanel QSlider#paramSlider::sub-page:horizontal {
+    background: #B5A5D1;
+    border-radius: 2px;
+}
+
+QWidget#annotationPopoutPanel QSlider#paramSlider::handle:horizontal {
+    width: 14px;
+    height: 14px;
+    margin: -5px 0;
+    border-radius: 7px;
+    background: #8B7AB8;
+}
+
+QWidget#annotationPopoutPanel QSlider#paramSlider::handle:horizontal:hover {
+    background: #6B5B95;
+}
+
+QWidget#annotationPopoutPanel QSlider#paramSlider::handle:horizontal:disabled {
+    background: #C9BEDC;
+}
+
+QWidget#annotationPopoutPanel QCheckBox {
+    spacing: 6px;
+    color: #3A3357;
+}
+
+QWidget#annotationPopoutPanel QCheckBox::indicator {
+    width: 16px;
+    height: 16px;
+    border: 1px solid #8B7AB8;
+    border-radius: 4px;
+    background: #FFFFFF;
+}
+
+QWidget#annotationPopoutPanel QCheckBox::indicator:hover {
+    border: 1px solid #8B7AB8;
+    background: #E4D9F0;
+}
+
+QWidget#annotationPopoutPanel QCheckBox::indicator:checked {
+    background: #B5A5D1;
+    border: 1px solid #8B7AB8;
+    image: url(:/icons/checked.png);
+}
+
+QWidget#annotationPopoutPanel QCheckBox::indicator:disabled {
+    background: #F0EAF5;
+    border: 1px solid #E5D9C5;
 }
 
 /* ---------- 系统托盘提示 ---------- */

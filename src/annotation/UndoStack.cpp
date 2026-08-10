@@ -6,6 +6,31 @@
 
 namespace SK {
 
+ResizeItemCommand::ResizeItemCommand(SK::BaseAnnotationItem* item,
+                                     const QRectF& oldRect,
+                                     const QRectF& newRect)
+    : m_item(item), m_oldRect(oldRect), m_newRect(newRect)
+{
+}
+
+void ResizeItemCommand::undo()
+{
+    // Fail-Fast：图元指针为空时直接返回，避免空指针解引用
+    if (m_item != nullptr)
+    {
+        m_item->setResizeRect(m_oldRect);
+    }
+}
+
+void ResizeItemCommand::redo()
+{
+    // Fail-Fast：图元指针为空时直接返回，避免空指针解引用
+    if (m_item != nullptr)
+    {
+        m_item->setResizeRect(m_newRect);
+    }
+}
+
 UndoStack::UndoStack(QObject* parent, int limit)
     : QObject(parent), m_limit(limit)
 {

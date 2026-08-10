@@ -22,6 +22,18 @@ EllipseItem::EllipseItem(QGraphicsItem* parent)
     setFlag(ItemSendsGeometryChanges, true);
 }
 
+void EllipseItem::setRect(const QRectF& rect)
+{
+    m_rect = rect;
+    prepareGeometryChange();
+    update();
+}
+
+QRectF EllipseItem::rect() const
+{
+    return m_rect;
+}
+
 QRectF EllipseItem::boundingRect() const
 {
     // 半线宽 + 边距，确保边框不被裁剪
@@ -29,9 +41,9 @@ QRectF EllipseItem::boundingRect() const
     return m_rect.adjusted(-margin, -margin, margin, margin);
 }
 
-void EllipseItem::paint(QPainter* painter,
-                        const QStyleOptionGraphicsItem* option,
-                        QWidget* widget)
+void EllipseItem::paintContent(QPainter* painter,
+                               const QStyleOptionGraphicsItem* option,
+                               QWidget* widget)
 {
     Q_UNUSED(option);
     Q_UNUSED(widget);
@@ -40,6 +52,16 @@ void EllipseItem::paint(QPainter* painter,
     painter->setPen(m_pen);
     painter->setBrush(m_brush);
     painter->drawEllipse(m_rect);
+}
+
+QRectF EllipseItem::resizeRect() const
+{
+    return m_rect;
+}
+
+void EllipseItem::setResizeRect(const QRectF& newRect)
+{
+    setRect(newRect);
 }
 
 } // namespace SK

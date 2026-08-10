@@ -4,6 +4,8 @@
  */
 #include "ToolBar.h"
 
+#include "sub_widget/ToolButton.h"
+
 #include <QAction>
 #include <QToolButton>
 #include <QMenu>
@@ -12,6 +14,7 @@
 #include <QMouseEvent>
 #include <QIcon>
 #include <QPixmap>
+#include <QLayout>
 
 namespace SK {
 
@@ -19,7 +22,10 @@ namespace {
 /// \brief 默认模式索引：画框截图
 constexpr int G_DEFAULT_MODE_INDEX = 0;
 /// \brief 工具栏图标尺寸
-constexpr int G_ICON_SIZE = 18;
+constexpr int G_ICON_SIZE = 20;
+/// \brief 模式按钮图标与文本的间距（像素，经 ToolButton 内部布局生效）
+constexpr int G_MODE_ICON_TEXT_SPACING = 12;
+constexpr int G_NORMAL_ICON_TEXT_SPACING = 4;
 
 /// \brief 截屏按钮图标（正常 / 悬停）
 const QString G_ICON_CUT       = QStringLiteral(":/icons/cut.png");
@@ -33,14 +39,22 @@ const QString G_ICON_MINIMIZE_HOVER = QStringLiteral(":/icons/minimize_hover.png
 /// \brief 关闭按钮图标（正常 / 悬停）
 const QString G_ICON_CLOSE       = QStringLiteral(":/icons/close.png");
 const QString G_ICON_CLOSE_HOVER = QStringLiteral(":/icons/close_hover.png");
-/// \brief 画框截图模式图标
-const QString G_ICON_FRAME  = QStringLiteral(":/icons/frame.png");
-/// \brief 窗口截图模式图标
-const QString G_ICON_WINDOW = QStringLiteral(":/icons/window.png");
-/// \brief 全屏截图模式图标
-const QString G_ICON_FULL   = QStringLiteral(":/icons/full.png");
-/// \brief 滚动截图模式图标
-const QString G_ICON_SCROLL = QStringLiteral(":/icons/scroll.png");
+/// \brief 画框截图模式图标（默认 / 悬停 / 选中）
+const QString G_ICON_FRAME       = QStringLiteral(":/icons/frame.png");
+const QString G_ICON_FRAME_HOVER = QStringLiteral(":/icons/frame_hover.png");
+const QString G_ICON_FRAME_SEL   = QStringLiteral(":/icons/frame_selected.png");
+/// \brief 窗口截图模式图标（默认 / 悬停 / 选中）
+const QString G_ICON_WINDOW       = QStringLiteral(":/icons/window.png");
+const QString G_ICON_WINDOW_HOVER = QStringLiteral(":/icons/window_hover.png");
+const QString G_ICON_WINDOW_SEL   = QStringLiteral(":/icons/window_selected.png");
+/// \brief 全屏截图模式图标（默认 / 悬停 / 选中）
+const QString G_ICON_FULL       = QStringLiteral(":/icons/full.png");
+const QString G_ICON_FULL_HOVER = QStringLiteral(":/icons/full_hover.png");
+const QString G_ICON_FULL_SEL   = QStringLiteral(":/icons/full_selected.png");
+/// \brief 滚动截图模式图标（默认 / 悬停 / 选中）
+const QString G_ICON_SCROLL       = QStringLiteral(":/icons/scroll.png");
+const QString G_ICON_SCROLL_HOVER = QStringLiteral(":/icons/scroll_hover.png");
+const QString G_ICON_SCROLL_SEL   = QStringLiteral(":/icons/scroll_selected.png");
 
 /**
  * @brief 构造带悬停状态的图标（用于工具按钮）
@@ -60,6 +74,28 @@ QIcon makeHoverIcon(const QString& normalPath, const QString& hoverPath)
 
     icon.addPixmap(normalPix, QIcon::Normal, QIcon::Off);
     icon.addPixmap(hoverPix,  QIcon::Active, QIcon::Off);
+    return icon;
+}
+
+/**
+ * @brief 构造下拉菜单项双态图标（默认 / 悬停）
+ * @param normalPath 默认图标
+ * @param hoverPath  悬停图标（_hover）
+ * @return 已注册多模式的 QIcon
+ *
+ * 说明：QMenu 绘制菜单项悬停态时使用的图标 Mode/State 组合随
+ * QStyle/QSS 实现而异（Active/Selected × Off/On），这里把常见组合
+ * 全部注册为 _hover 图标，确保任意路径都能命中。
+ */
+QIcon makeModeMenuIcon(const QString& normalPath, const QString& hoverPath)
+{
+    QIcon icon;
+    QPixmap normalPix(normalPath);
+    QPixmap hoverPix(hoverPath);
+    icon.addPixmap(normalPix, QIcon::Normal,   QIcon::Off);
+    icon.addPixmap(hoverPix,  QIcon::Active,   QIcon::Off);
+    icon.addPixmap(hoverPix,  QIcon::Selected, QIcon::Off);
+    icon.addPixmap(hoverPix,  QIcon::Selected, QIcon::On);
     return icon;
 }
 } // namespace
@@ -133,72 +169,83 @@ ToolBar::ToolBar(QWidget* parent)
 void ToolBar::setupActions()
 {
     // ---- 截屏按钮 ----
-    m_actCapture = new QAction(makeHoverIcon(G_ICON_CUT, G_ICON_CUT_HOVER),
-                                tr("截屏"), this);
-    m_actCapture->setToolTip(tr("开始截屏  (Ctrl+Alt+A)"));
+    m_actCapture = new QAction(makeHoverIcon(G_ICON_CUT, G_ICON_CUT_HOVER), tr("截屏"), this);
     m_actCapture->setShortcut(QKeySequence("Ctrl+Alt+A"));
-    connect(m_actCapture, &QAction::triggered,
-            this, &ToolBar::captureClicked);
+    connect(m_actCapture, &QAction::triggered, this, &ToolBar::captureClicked);
 
-    m_btnCapture = new QToolButton(this);
+    m_btnCapture = new ToolButton(this);
     m_btnCapture->setDefaultAction(m_actCapture);
+    m_btnCapture->setIconTextSpacing(G_NORMAL_ICON_TEXT_SPACING);
     m_btnCapture->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     m_btnCapture->setObjectName("captureButton");
     addWidget(m_btnCapture);
 
     // ---- 模式下拉 ----
-    m_btnMode = new QToolButton(this);
-    m_btnMode->setText(tr("画框截图") + QStringLiteral(" ▾"));
-    m_btnMode->setToolTip(tr("切换截屏模式"));
+    m_btnMode = new ToolButton(this);
+    m_btnMode->setText(tr("画框截图"));
     m_btnMode->setPopupMode(QToolButton::InstantPopup);
     m_btnMode->setObjectName("modeButton");
     m_btnMode->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
-    // 初始模式图标：画框截图（菜单项不使用 hover 变体）
-    m_btnMode->setIcon(QIcon(G_ICON_FRAME));
+    // 图标与文本间距：通过内部布局 spacing 控制（默认 2px，此处适当加大）
+    m_btnMode->setIconTextSpacing(G_MODE_ICON_TEXT_SPACING);
+    // 初始模式图标：画框截图（三态：默认 / 悬停 / 按下激活，事件驱动切换）
+    m_btnMode->setTriStateIcons(QIcon(G_ICON_FRAME),
+                                QIcon(G_ICON_FRAME_HOVER),
+                                QIcon(G_ICON_FRAME_SEL));
+    m_btnMode->setMinimumWidth(135);
 
     QMenu* modeMenu = new QMenu(m_btnMode);
     QActionGroup* group = new QActionGroup(modeMenu);
     group->setExclusive(true);
 
-    // 添加模式的 lambda（菜单项只用普通图标，不使用 hover 变体）
-    auto addMode = [&](const QString& text, int mode, const QString& iconPath)
+    // 添加模式的 lambda（菜单项悬停用 _hover，按钮三态由 ToolButton 事件驱动）
+    auto addMode = [&](const QString& text, int mode,
+                       const QString& normalPath,
+                       const QString& hoverPath,
+                       const QString& selectedPath)
     {
-        QAction* action = modeMenu->addAction(QIcon(iconPath), text);
+        QAction* action = modeMenu->addAction(
+            makeModeMenuIcon(normalPath, hoverPath), text);
         action->setCheckable(true);
         action->setData(mode);
+        // 保存三态路径，供 setCaptureMode 恢复按钮图标
+        action->setProperty("iconNormal", normalPath);
+        action->setProperty("iconHover", hoverPath);
+        action->setProperty("iconSelected", selectedPath);
         group->addAction(action);
         if (mode == G_DEFAULT_MODE_INDEX)
         {
             action->setChecked(true);   // 默认画框
         }
         connect(action, &QAction::triggered, this,
-                [this, text, mode, iconPath]()
+                [this, text, mode, normalPath, hoverPath, selectedPath]()
         {
-            m_btnMode->setText(text + QStringLiteral(" ▾"));
-            m_btnMode->setIcon(QIcon(iconPath));
+            m_btnMode->setText(text);
+            m_btnMode->setTriStateIcons(QIcon(normalPath),
+                                        QIcon(hoverPath),
+                                        QIcon(selectedPath));
             Q_EMIT captureModeChanged(mode);
         });
     };
 
     // 顺序：画框 / 窗口 / 全屏 / 滚动
-    addMode(tr("画框截图"), 0, G_ICON_FRAME);
-    addMode(tr("窗口截图"), 2, G_ICON_WINDOW);
-    addMode(tr("全屏截图"), 1, G_ICON_FULL);
-    addMode(tr("滚动截图"), 3, G_ICON_SCROLL);
+    addMode(tr("画框截图"), 0, G_ICON_FRAME, G_ICON_FRAME_HOVER, G_ICON_FRAME_SEL);
+    addMode(tr("窗口截图"), 2, G_ICON_WINDOW, G_ICON_WINDOW_HOVER, G_ICON_WINDOW_SEL);
+    addMode(tr("全屏截图"), 1, G_ICON_FULL, G_ICON_FULL_HOVER, G_ICON_FULL_SEL);
+    addMode(tr("滚动截图"), 3, G_ICON_SCROLL, G_ICON_SCROLL_HOVER, G_ICON_SCROLL_SEL);
 
-    m_btnMode->setMenu(modeMenu);
+    m_btnMode->attachMenu(modeMenu);
     addWidget(m_btnMode);
 
     // ---- 保存按钮（截屏完成后显示） ----
-    m_btnSave = new QToolButton(this);
+    m_btnSave = new ToolButton(this);
     m_btnSave->setText(tr("保存"));
     m_btnSave->setIcon(makeHoverIcon(G_ICON_SAVE, G_ICON_SAVE_HOVER));
-    m_btnSave->setToolTip(tr("保存截图  (Ctrl+S)"));
     m_btnSave->setShortcut(QKeySequence::Save);
     m_btnSave->setObjectName("saveButton");
+    m_btnSave->setIconTextSpacing(G_NORMAL_ICON_TEXT_SPACING);
     m_btnSave->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
-    connect(m_btnSave, &QToolButton::clicked,
-            this, &ToolBar::saveRequested);
+    connect(m_btnSave, &QToolButton::clicked, this, &ToolBar::saveRequested);
     m_saveAction = addWidget(m_btnSave);
     m_saveAction->setVisible(false);
 
@@ -210,23 +257,17 @@ void ToolBar::setupActions()
     addWidget(dragHandle);
 
     // ---- 最小化 / 关闭 ----
-    m_actMinimize = new QAction(makeHoverIcon(G_ICON_MINIMIZE, G_ICON_MINIMIZE_HOVER),
-                                  tr("最小化"), this);
-    m_actMinimize->setToolTip(tr("最小化到系统托盘"));
-    connect(m_actMinimize, &QAction::triggered,
-            this, &ToolBar::minimizeRequested);
-    auto* btnMin = new QToolButton(this);
+    m_actMinimize = new QAction(makeHoverIcon(G_ICON_MINIMIZE, G_ICON_MINIMIZE_HOVER), tr("最小化"), this);
+    connect(m_actMinimize, &QAction::triggered, this, &ToolBar::minimizeRequested);
+    auto* btnMin = new ToolButton(this);
     btnMin->setDefaultAction(m_actMinimize);
     btnMin->setAutoRaise(true);
     btnMin->setObjectName("minimizeButton");
     addWidget(btnMin);
 
-    m_actClose = new QAction(makeHoverIcon(G_ICON_CLOSE, G_ICON_CLOSE_HOVER),
-                              tr("关闭"), this);
-    m_actClose->setToolTip(tr("退出 ScreenKiller"));
-    connect(m_actClose, &QAction::triggered,
-            this, &ToolBar::closeRequested);
-    auto* btnClose = new QToolButton(this);
+    m_actClose = new QAction(makeHoverIcon(G_ICON_CLOSE, G_ICON_CLOSE_HOVER), tr("关闭"), this);
+    connect(m_actClose, &QAction::triggered, this, &ToolBar::closeRequested);
+    auto* btnClose = new ToolButton(this);
     btnClose->setDefaultAction(m_actClose);
     btnClose->setAutoRaise(true);
     btnClose->setObjectName("closeButton");
@@ -255,8 +296,12 @@ void ToolBar::setCaptureMode(int mode)
         if (action->data().toInt() == mode)
         {
             action->setChecked(true);
-            m_btnMode->setText(action->text() + QStringLiteral(" ▾"));
-            m_btnMode->setIcon(action->icon());
+            m_btnMode->setText(action->text());
+            // 恢复按钮为三态图标（从 action 保存的路径重建）
+            m_btnMode->setTriStateIcons(
+                QIcon(action->property("iconNormal").toString()),
+                QIcon(action->property("iconHover").toString()),
+                QIcon(action->property("iconSelected").toString()));
             return;
         }
     }

@@ -63,13 +63,13 @@ public:
      * @brief 设置最大帧数
      * @param n 最大帧数
      */
-    void setMaxFrames(int n)        { m_maxFrames = n; }
+    void setMaxFrames(int n);
 
     /**
      * @brief 设置滚轮触发截屏的像素阈值
      * @param px 累积滚动像素阈值
      */
-    void setScrollPxThreshold(int px) { m_scrollPxThreshold = px; }
+    void setScrollPxThreshold(int px);
 
 Q_SIGNALS:
     /**

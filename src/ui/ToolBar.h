@@ -22,6 +22,8 @@ class QToolButton;
 
 namespace SK {
 
+class ToolButton;
+
 class ToolBar : public QToolBar
 {
     Q_OBJECT
@@ -68,9 +70,9 @@ private:
     QAction*     m_actCapture   = nullptr;  ///< 截屏动作
     QAction*     m_actMinimize  = nullptr;  ///< 最小化动作
     QAction*     m_actClose     = nullptr;  ///< 关闭动作
-    QToolButton* m_btnCapture   = nullptr;  ///< 截屏按钮
-    QToolButton* m_btnMode      = nullptr;  ///< 模式下拉按钮
-    QToolButton* m_btnSave      = nullptr;  ///< 保存按钮
+    ToolButton* m_btnCapture = nullptr;     ///< 截屏按钮
+    ToolButton* m_btnMode   = nullptr;  ///< 模式下拉按钮（间距可控子类）
+    ToolButton* m_btnSave = nullptr;    ///< 保存按钮
     QAction*     m_saveAction   = nullptr;  ///< 保存按钮的 wrapper action
 
     QPoint  m_dragOffset;          ///< 拖拽起点偏移

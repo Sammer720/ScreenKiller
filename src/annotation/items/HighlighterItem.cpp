@@ -32,9 +32,20 @@ HighlighterItem::HighlighterItem(QGraphicsItem* parent)
     setPenWidth(G_HIGHLIGHT_WIDTH);
 }
 
-void HighlighterItem::paint(QPainter* painter,
-                            const QStyleOptionGraphicsItem* option,
-                            QWidget* widget)
+void HighlighterItem::setAlpha(int alpha)
+{
+    m_alpha = alpha;
+    update();
+}
+
+int HighlighterItem::alpha() const
+{
+    return m_alpha;
+}
+
+void HighlighterItem::paintContent(QPainter* painter,
+                                   const QStyleOptionGraphicsItem* option,
+                                   QWidget* widget)
 {
     Q_UNUSED(option);
     Q_UNUSED(widget);
@@ -56,7 +67,7 @@ void HighlighterItem::paint(QPainter* painter,
     painter->setBrush(Qt::NoBrush);
 
     // 复用父类的点序列手动重建路径并绘制
-    // （父类 paint 已被覆盖，这里手动重画）
+    // （父类 paintContent 已被覆盖，这里手动重画）
     QVector<QPointF> pointList = points();
     if (pointList.size() < G_MIN_POINTS_TO_DRAW)
     {
