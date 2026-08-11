@@ -7,7 +7,7 @@
 ![qt](https://img.shields.io/badge/Qt-6.11%2B-green)
 ![opencv](https://img.shields.io/badge/OpenCV-5.x-green)
 
-> **💾 直接下载发布版**：可从发行页面下载 **v1.2.0** 安装包 (`ScreenKiller-1.2.0-win64.exe`) 一键安装，或下载绿色免安装版压缩包 (`ScreenKiller-1.2.0-win64.zip`) 解压即用，无需配置编译环境。
+> **💾 直接下载发布版**：可从发行页面下载 **v1.2.1** 安装包 (`ScreenKiller-1.2.1-win64.exe`) 一键安装，或下载绿色免安装版压缩包 (`ScreenKiller-1.2.1-win64.zip`) 解压即用，无需配置编译环境。
 
 ---
 
@@ -129,6 +129,11 @@ cpack --preset package_release -D CPACK_PACKAGE_VERSION=1.2.0 -D CPACK_PACKAGE_F
 - 图元属性边界 clamp 约束（`AnnotationConstants`）
 - 新增多个涉及截屏绘制的快捷键
 - 新手引导提示面板，可收缩
+
+**v1.2.1 主要更新（自 v1.2.0，Bug 修复）：**
+- 修复 **框选截图** 时选区左边与上边残留蓝色边框的问题
+- 修复 **窗体截图** 窗体预览左上角标签文字超出边界的问题
+- 修复 **保存** 时每次都会重新打开上一次保存位置的问题（现默认打开当前会话起始目录）
 
 ---
 
