@@ -130,6 +130,6 @@ private:
     HWND  m_currentHwnd = nullptr;  ///< 当前高亮窗口句柄
     QRect m_currentRect;             ///< 当前高亮窗口矩形（本 widget 坐标）
     HWND  m_overlayHwnd = nullptr;   ///< 本遮罩窗口的 HWND（Z-Order 遍历时跳过自身）
-    QImage m_screenCapture;          ///< 屏幕截图，用于反色十字光标像素采样
+    QImage m_screenCapture;          ///< 屏幕截屏，用于反色十字光标像素采样
     QPoint m_cursorPos{-1, -1};      ///< 当前鼠标位置（-1,-1 表示鼠标不在遮罩上）
 };

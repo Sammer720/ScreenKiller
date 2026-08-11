@@ -204,10 +204,14 @@ QImage CaptureEngine::grabRegion(const QRect& rect)
     {
         return {};
     }
+    // 选区四周内缩 1px，避免截到 RegionSelector 绘制的蓝色操作边框
+    // （与 ScrollCapture::captureFrame 的内缩策略保持一致）
+    QRect innerRect = rect.adjusted(1, 1, -1, -1);
+
     // 设备无关像素 -> 设备像素
     qreal ratio = full.devicePixelRatio();
-    QRectF deviceRect(rect.x() * ratio, rect.y() * ratio,
-                      rect.width() * ratio, rect.height() * ratio);
+    QRectF deviceRect(innerRect.x() * ratio, innerRect.y() * ratio,
+                      innerRect.width() * ratio, innerRect.height() * ratio);
     return full.copy(deviceRect.toAlignedRect());
 }
 

@@ -62,11 +62,11 @@ constexpr int G_WINDOW_DEFAULT_HEIGHT = 600;
 constexpr int G_CAPTURE_DELAY_MS   = 120;
 /// \brief 系统托盘气泡提示显示时长（毫秒）
 constexpr int G_TRAY_NOTICE_DURATION_MS = 3000;
-/// \brief 默认截图保存子目录名
+/// \brief 默认截屏保存子目录名
 const QString G_SCREENSHOT_SUBDIR = QStringLiteral("Screenshots");
-/// \brief 截图文件名前缀
+/// \brief 截屏文件名前缀
 const QString G_SCREENSHOT_PREFIX  = QStringLiteral("screenshot_");
-/// \brief 默认截图时间戳格式
+/// \brief 默认截屏时间戳格式
 const QString G_TIMESTAMP_FORMAT   = QStringLiteral("yyyyMMdd_HHmmss");
 /// \brief 中央栈页面索引：占位页
 constexpr int G_PAGE_PLACEHOLDER   = 0;
@@ -82,6 +82,8 @@ constexpr int G_RESIZE_BORDER_WIDTH = 6;
 const QString G_CONFIG_KEY_GEOMETRY = QStringLiteral("mainWindow/geometry");
 /// \brief 截屏模式在配置文件中的键名
 const QString G_CONFIG_KEY_CAPTURE_MODE = QStringLiteral("mainWindow/captureMode");
+/// \brief 上次保存截屏的完整路径在配置文件中的键名（用于下次默认打开同目录）
+const QString G_CONFIG_KEY_LAST_SAVE_PATH = QStringLiteral("mainWindow/lastSavePath");
 /// \brief 引导面板距标注视口左上角的边距（像素），需足够避开视口边框和内边距
 constexpr int G_GUIDE_PANEL_MARGIN = 24;
 /// \brief 标注工具栏距中央栈边缘的边距（像素）
@@ -159,7 +161,7 @@ void MainWindow::setupUi()
         "<td style='text-align: right; padding-right: 40px; "
         "color: #6B5B95; font-weight: 600; white-space: nowrap;'>"
         "Ctrl + S</td>"
-        "<td style='text-align: left; color: #3A3357;'>保存截图</td>"
+        "<td style='text-align: left; color: #3A3357;'>保存截屏</td>"
         "</tr>"
         "<tr>"
         "<td style='text-align: right; padding-right: 40px; "
@@ -294,7 +296,7 @@ void MainWindow::registerHotkeys()
             this,
             tr("警告"),
             tr("存在其他进程占用快捷键 Ctrl + Alt + A 。\n"
-               "将无法使用快捷键截图，请关闭冲突进程后重启。"));
+               "将无法使用快捷键截屏，请关闭冲突进程后重启。"));
     }
 }
 
@@ -490,7 +492,7 @@ void MainWindow::onCaptureFinished(const QImage& image)
         SK::utils::showWarning(
             this,
             tr("警告"),
-            tr("未能获取到截图，请重试。"));
+            tr("未能获取到截屏，请重试。"));
         showNormal();
         return;
     }
@@ -515,11 +517,11 @@ void MainWindow::onCaptureFinished(const QImage& image)
     // 显示保存按钮
     m_toolBar->setShowSaveButton(true);
 
-    // 截图成功后自动复制到剪贴板
+    // 截屏成功后自动复制到剪贴板
     QGuiApplication::clipboard()->setImage(image, QClipboard::Clipboard);
 
     // 用系统托盘气泡提示用户（与标注页右键复制的通知共用同一实现）
-    showImageCopiedNotice(tr("截图完成"));
+    showImageCopiedNotice(tr("截屏完成"));
 
     // 显示并激活主窗口
     showNormal();
@@ -586,14 +588,29 @@ void MainWindow::onSaveRequested()
     if (img.isNull())
     {
         SK_LOG_WARN() << "导出图像为空，无法保存。";
-        SK::utils::showWarning(this, tr("警告"), tr("没有可保存的截图。"));
+        SK::utils::showWarning(this, tr("警告"), tr("没有可保存的截屏。"));
         return;
     }
 
-    // 默认保存路径：C:\Users\<user>\Pictures\Screenshots
-    QString defaultDir =
-        QStandardPaths::writableLocation(QStandardPaths::PicturesLocation)
-        + QStringLiteral("/") + G_SCREENSHOT_SUBDIR;
+    // 默认保存目录：优先使用上次保存路径所在的目录，否则回退到默认截屏目录
+    QSettings settings;
+    QString defaultDir = "";
+    QString lastPath = settings.value(G_CONFIG_KEY_LAST_SAVE_PATH).toString();
+    if (!lastPath.isEmpty())
+    {
+        QDir lastDir(lastPath);
+        if (lastDir.exists()) 
+        {
+          defaultDir = lastDir.absolutePath();
+        }
+    }
+    if (defaultDir.isEmpty())
+    {
+        // C:\Users\<user>\Pictures\Screenshots
+        defaultDir =
+            QStandardPaths::writableLocation(QStandardPaths::PicturesLocation)
+            + QStringLiteral("/") + G_SCREENSHOT_SUBDIR;
+    }
     QDir().mkpath(defaultDir);
 
     QString timestamp = QDateTime::currentDateTime().toString(G_TIMESTAMP_FORMAT);
@@ -604,7 +621,7 @@ void MainWindow::onSaveRequested()
                           + QStringLiteral(".png");
 
     QString filePath = QFileDialog::getSaveFileName(
-        this, tr("保存截图"), defaultPath,
+        this, tr("保存截屏"), defaultPath,
         tr("PNG 图像 (*.png);;JPEG 图像 (*.jpg);;BMP 图像 (*.bmp)"));
     if (filePath.isEmpty())
     {
@@ -622,7 +639,9 @@ void MainWindow::onSaveRequested()
                                 tr("无法写入文件：\n%1").arg(filePath));
         return;
     }
-    SK_LOG_INFO() << "截图已保存至:" << filePath;
+    // 保存成功后记录本次路径，下次保存对话框默认打开同目录
+    settings.setValue(G_CONFIG_KEY_LAST_SAVE_PATH, fileInfo.absolutePath());
+    SK_LOG_INFO() << "截屏已保存至:" << filePath;
 }
 
 void MainWindow::onViewImageCopied()

@@ -205,7 +205,7 @@ AnnotationScene::~AnnotationScene()
 
 void AnnotationScene::loadImage(const QImage& image)
 {
-    // 新截图加载前清空旧标注图元与撤销栈，避免旧截图图素残留到新截图
+    // 新截屏加载前清空旧标注图元与撤销栈，避免旧截屏图素残留到新截屏
     clearAllAnnotations();
     m_bgImage = image;
     // 首次加载时创建背景图元

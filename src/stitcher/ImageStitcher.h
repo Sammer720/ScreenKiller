@@ -41,7 +41,7 @@ struct FixedRegion
 /**
  * @brief 基于 OpenCV 的垂直图像拼接器
  *
- * 通过模板匹配计算相邻帧的重叠区域，实现长截图拼接。
+ * 通过模板匹配计算相邻帧的重叠区域，实现长截屏拼接。
  */
 class ImageStitcher
 {

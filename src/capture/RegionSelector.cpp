@@ -85,7 +85,7 @@ void RegionSelector::finish()
 
 void RegionSelector::start()
 {
-    // 重置选区状态，避免上次截图的选区残留
+    // 重置选区状态，避免上次截屏的选区残留
     m_dragging  = false;
     m_startPos  = QPoint();
     m_endPos    = QPoint();

@@ -1,6 +1,6 @@
 # 屏幕杀手 (ScreenKiller)
 
-> Windows 长截图（滚动截屏）与图像标注工具 · Qt 6 + OpenCV 5 + Windows API
+> Windows 长截屏（滚动截屏）与图像标注工具 · Qt 6 + OpenCV 5 + Windows API
 
 ![status](https://img.shields.io/badge/status-WIP-orange)
 ![platform](https://img.shields.io/badge/platform-Windows11-blue)
@@ -87,8 +87,8 @@ cpack --preset package_release -D CPACK_PACKAGE_VERSION=1.2.0 -D CPACK_PACKAGE_F
 
 | 操作 | 效果 |
 |------|------|
-| 左键 | 用当前工具在截图上绘制 |
-| 右键 | 复制当前已编辑的截图到粘贴板 |
+| 左键 | 用当前工具在截屏上绘制 |
+| 右键 | 复制当前已编辑的截屏到粘贴板 |
 | 点击中键 | 恢复视图到100%缩放大小，并居中显示 |
 | 滚动中键 | 缩放画布 |
 | 拖动中键 | 平移视图，查看画布 |
@@ -108,7 +108,7 @@ cpack --preset package_release -D CPACK_PACKAGE_VERSION=1.2.0 -D CPACK_PACKAGE_F
 
 ## 3. 项目简介
 
-屏幕杀手 (ScreenKiller) 是一款 Windows 桌面端的「截图 + 标注」工具，具备四种截屏模式与完整的图形标注画布，整体风格遵循 Windows 11 浅色设计语言。
+屏幕杀手 (ScreenKiller) 是一款 Windows 桌面端的「截屏 + 标注」工具，具备四种截屏模式与完整的图形标注画布，整体风格遵循 Windows 11 浅色设计语言。
 
 | 能力 | 说明 |
 |------|------|
@@ -127,7 +127,7 @@ cpack --preset package_release -D CPACK_PACKAGE_VERSION=1.2.0 -D CPACK_PACKAGE_F
 - 标注 / 荧光笔 **双色板** 拆分；颜色 / 线宽 / 透明度 / 字体滑块参数，`QSettings` 持久化
 - 文字标注改为 **点击即输入**（虚线框编辑覆盖层）
 - 图元属性边界 clamp 约束（`AnnotationConstants`）
-- 新增多个涉及截图绘制的快捷键
+- 新增多个涉及截屏绘制的快捷键
 - 新手引导提示面板，可收缩
 
 ---
