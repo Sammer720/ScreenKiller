@@ -82,6 +82,8 @@ constexpr int G_RESIZE_BORDER_WIDTH = 6;
 const QString G_CONFIG_KEY_GEOMETRY = QStringLiteral("mainWindow/geometry");
 /// \brief 截屏模式在配置文件中的键名
 const QString G_CONFIG_KEY_CAPTURE_MODE = QStringLiteral("mainWindow/captureMode");
+/// \brief 上次保存截屏的完整路径在配置文件中的键名（用于下次默认打开同目录）
+const QString G_CONFIG_KEY_LAST_SAVE_PATH = QStringLiteral("mainWindow/lastSavePath");
 /// \brief 引导面板距标注视口左上角的边距（像素），需足够避开视口边框和内边距
 constexpr int G_GUIDE_PANEL_MARGIN = 24;
 /// \brief 标注工具栏距中央栈边缘的边距（像素）
@@ -590,10 +592,25 @@ void MainWindow::onSaveRequested()
         return;
     }
 
-    // 默认保存路径：C:\Users\<user>\Pictures\Screenshots
-    QString defaultDir =
-        QStandardPaths::writableLocation(QStandardPaths::PicturesLocation)
-        + QStringLiteral("/") + G_SCREENSHOT_SUBDIR;
+    // 默认保存目录：优先使用上次保存路径所在的目录，否则回退到默认截屏目录
+    QSettings settings;
+    QString defaultDir = "";
+    QString lastPath = settings.value(G_CONFIG_KEY_LAST_SAVE_PATH).toString();
+    if (!lastPath.isEmpty())
+    {
+        QDir lastDir(lastPath);
+        if (lastDir.exists()) 
+        {
+          defaultDir = lastDir.absolutePath();
+        }
+    }
+    if (defaultDir.isEmpty())
+    {
+        // C:\Users\<user>\Pictures\Screenshots
+        defaultDir =
+            QStandardPaths::writableLocation(QStandardPaths::PicturesLocation)
+            + QStringLiteral("/") + G_SCREENSHOT_SUBDIR;
+    }
     QDir().mkpath(defaultDir);
 
     QString timestamp = QDateTime::currentDateTime().toString(G_TIMESTAMP_FORMAT);
@@ -622,6 +639,8 @@ void MainWindow::onSaveRequested()
                                 tr("无法写入文件：\n%1").arg(filePath));
         return;
     }
+    // 保存成功后记录本次路径，下次保存对话框默认打开同目录
+    settings.setValue(G_CONFIG_KEY_LAST_SAVE_PATH, fileInfo.absolutePath());
     SK_LOG_INFO() << "截屏已保存至:" << filePath;
 }
 

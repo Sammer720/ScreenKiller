@@ -14,13 +14,14 @@
 #include <QPainterPath>
 #include <QPen>
 #include <QTimer>
+#include <QFontMetrics>
+#include <QString>
 
 #ifdef Q_OS_WIN
 #  include <windows.h>
 #endif
 
 #include "platform/WinApi.h"
-#include "utils/Logger.h"
 
 namespace {
 
@@ -44,10 +45,10 @@ constexpr int G_TITLE_TAG_OFFSET = 24;
 constexpr int G_TITLE_TAG_HEIGHT = 22;
 /// \brief 标题标签最大宽度
 constexpr int G_TITLE_TAG_MAX_WIDTH = 400;
-/// \brief 标题每字符估算宽度
-constexpr int G_TITLE_CHAR_WIDTH = 10;
+/// \brief 标题标签字体点大小（较系统默认适当缩小）
+constexpr int G_TITLE_TAG_FONT_POINT = 9;
 /// \brief 标题标签内边距
-constexpr int G_TITLE_TAG_PADDING = 20;
+constexpr int G_TITLE_TAG_PADDING = 10;
 /// \brief 圆角矩形半径
 constexpr int G_TAG_RADIUS = 4;
 
@@ -221,16 +222,24 @@ void WindowSelector::drawWindowTitleTag(QPainter& painter)
         return;
     }
 
+    // 适当缩小字体，并用 QFontMetrics 实测文本宽度，使标签长度随标题自适应
+    QFont font = painter.font();
+    font.setPointSize(G_TITLE_TAG_FONT_POINT);
+    painter.setFont(font);
+    QFontMetrics fm(font);
+
+    QString displayText = titleStr.split(" - " ).last();
+    displayText = " " + displayText;
+
     int tagWidth = qMin(G_TITLE_TAG_MAX_WIDTH,
-                        titleStr.size() * G_TITLE_CHAR_WIDTH + G_TITLE_TAG_PADDING);
+                        fm.horizontalAdvance(displayText) + G_TITLE_TAG_PADDING);
     QRect tagRect(m_currentRect.left(), m_currentRect.top() - G_TITLE_TAG_OFFSET,
                   tagWidth, G_TITLE_TAG_HEIGHT);
     painter.setPen(Qt::NoPen);
     painter.setBrush(QColor(G_ACCENT_R, G_ACCENT_G, G_ACCENT_B, G_TITLE_BG_ALPHA));
     painter.drawRoundedRect(tagRect, G_TAG_RADIUS, G_TAG_RADIUS);
     painter.setPen(QPen(Qt::white));
-    painter.drawText(tagRect, Qt::AlignVCenter | Qt::AlignLeft,
-                     QStringLiteral("  ") + titleStr);
+    painter.drawText(tagRect, Qt::AlignVCenter | Qt::AlignLeft, displayText);
 #endif
 }
 
