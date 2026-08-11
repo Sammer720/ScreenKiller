@@ -1,6 +1,6 @@
 /**
  * \file ScrollCapture.h
- * \brief 手动滚动截屏（长截图）
+ * \brief 手动滚动截屏（长截屏）
  *
  * 工作流：
  *   1. start() 先让用户框选要截屏的目标窗口 / 区域

@@ -19,7 +19,7 @@
 namespace SK {
 
 namespace {
-/// \brief 默认模式索引：画框截图
+/// \brief 默认模式索引：画框截屏
 constexpr int G_DEFAULT_MODE_INDEX = 0;
 /// \brief 工具栏图标尺寸
 constexpr int G_ICON_SIZE = 20;
@@ -39,19 +39,19 @@ const QString G_ICON_MINIMIZE_HOVER = QStringLiteral(":/icons/minimize_hover.png
 /// \brief 关闭按钮图标（正常 / 悬停）
 const QString G_ICON_CLOSE       = QStringLiteral(":/icons/close.png");
 const QString G_ICON_CLOSE_HOVER = QStringLiteral(":/icons/close_hover.png");
-/// \brief 画框截图模式图标（默认 / 悬停 / 选中）
+/// \brief 画框截屏模式图标（默认 / 悬停 / 选中）
 const QString G_ICON_FRAME       = QStringLiteral(":/icons/frame.png");
 const QString G_ICON_FRAME_HOVER = QStringLiteral(":/icons/frame_hover.png");
 const QString G_ICON_FRAME_SEL   = QStringLiteral(":/icons/frame_selected.png");
-/// \brief 窗口截图模式图标（默认 / 悬停 / 选中）
+/// \brief 窗口截屏模式图标（默认 / 悬停 / 选中）
 const QString G_ICON_WINDOW       = QStringLiteral(":/icons/window.png");
 const QString G_ICON_WINDOW_HOVER = QStringLiteral(":/icons/window_hover.png");
 const QString G_ICON_WINDOW_SEL   = QStringLiteral(":/icons/window_selected.png");
-/// \brief 全屏截图模式图标（默认 / 悬停 / 选中）
+/// \brief 全屏截屏模式图标（默认 / 悬停 / 选中）
 const QString G_ICON_FULL       = QStringLiteral(":/icons/full.png");
 const QString G_ICON_FULL_HOVER = QStringLiteral(":/icons/full_hover.png");
 const QString G_ICON_FULL_SEL   = QStringLiteral(":/icons/full_selected.png");
-/// \brief 滚动截图模式图标（默认 / 悬停 / 选中）
+/// \brief 滚动截屏模式图标（默认 / 悬停 / 选中）
 const QString G_ICON_SCROLL       = QStringLiteral(":/icons/scroll.png");
 const QString G_ICON_SCROLL_HOVER = QStringLiteral(":/icons/scroll_hover.png");
 const QString G_ICON_SCROLL_SEL   = QStringLiteral(":/icons/scroll_selected.png");
@@ -182,13 +182,13 @@ void ToolBar::setupActions()
 
     // ---- 模式下拉 ----
     m_btnMode = new ToolButton(this);
-    m_btnMode->setText(tr("画框截图"));
+    m_btnMode->setText(tr("画框截屏"));
     m_btnMode->setPopupMode(QToolButton::InstantPopup);
     m_btnMode->setObjectName("modeButton");
     m_btnMode->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     // 图标与文本间距：通过内部布局 spacing 控制（默认 2px，此处适当加大）
     m_btnMode->setIconTextSpacing(G_MODE_ICON_TEXT_SPACING);
-    // 初始模式图标：画框截图（三态：默认 / 悬停 / 按下激活，事件驱动切换）
+    // 初始模式图标：画框截屏（三态：默认 / 悬停 / 按下激活，事件驱动切换）
     m_btnMode->setTriStateIcons(QIcon(G_ICON_FRAME),
                                 QIcon(G_ICON_FRAME_HOVER),
                                 QIcon(G_ICON_FRAME_SEL));
@@ -229,10 +229,10 @@ void ToolBar::setupActions()
     };
 
     // 顺序：画框 / 窗口 / 全屏 / 滚动
-    addMode(tr("画框截图"), 0, G_ICON_FRAME, G_ICON_FRAME_HOVER, G_ICON_FRAME_SEL);
-    addMode(tr("窗口截图"), 2, G_ICON_WINDOW, G_ICON_WINDOW_HOVER, G_ICON_WINDOW_SEL);
-    addMode(tr("全屏截图"), 1, G_ICON_FULL, G_ICON_FULL_HOVER, G_ICON_FULL_SEL);
-    addMode(tr("滚动截图"), 3, G_ICON_SCROLL, G_ICON_SCROLL_HOVER, G_ICON_SCROLL_SEL);
+    addMode(tr("画框截屏"), 0, G_ICON_FRAME, G_ICON_FRAME_HOVER, G_ICON_FRAME_SEL);
+    addMode(tr("窗口截屏"), 2, G_ICON_WINDOW, G_ICON_WINDOW_HOVER, G_ICON_WINDOW_SEL);
+    addMode(tr("全屏截屏"), 1, G_ICON_FULL, G_ICON_FULL_HOVER, G_ICON_FULL_SEL);
+    addMode(tr("滚动截屏"), 3, G_ICON_SCROLL, G_ICON_SCROLL_HOVER, G_ICON_SCROLL_SEL);
 
     m_btnMode->attachMenu(modeMenu);
     addWidget(m_btnMode);

@@ -142,6 +142,6 @@ private:
     QPoint   m_endPos;            ///< 拖拽当前点
     QRect    m_selection;         ///< 当前选区
     bool     m_keepOpen = false;  ///< 选区确认后是否保持遮罩不关闭
-    QImage   m_screenCapture;     ///< 全屏截图（用于反色十字光标取色）
+    QImage   m_screenCapture;     ///< 全屏截屏（用于反色十字光标取色）
     QPoint   m_cursorPos{-1, -1}; ///< 当前光标位置（用于反色十字光标）
 };

@@ -173,7 +173,7 @@ ResizeHandle BaseAnnotationItem::handleAt(const QPointF& pos) const
     return ResizeHandle::None;
 }
 
-// itemChange：选中态重绘手柄 + 位置 clamp 到场景边界（截图范围）
+// itemChange：选中态重绘手柄 + 位置 clamp 到场景边界（截屏范围）
 QVariant BaseAnnotationItem::itemChange(GraphicsItemChange change,
                                         const QVariant& value)
 {
@@ -183,7 +183,7 @@ QVariant BaseAnnotationItem::itemChange(GraphicsItemChange change,
         update();
     }
 
-    // 位置即将改变时 clamp 到场景边界（截图范围），防止图元移出图片
+    // 位置即将改变时 clamp 到场景边界（截屏范围），防止图元移出图片
     // 注意用 ItemPositionChange 而非 ItemPositionHasChanged：
     // 前者是位置即将改变、修改返回值生效；后者是事后通知、修改不生效
     if (change == ItemPositionChange)

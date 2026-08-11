@@ -26,7 +26,7 @@ namespace {
 
 /// \brief 遮罩透明度
 constexpr int G_MASK_ALPHA = 110;
-/// \brief 遮罩关闭后等待画面刷新的延迟（毫秒），确保截图时遮罩已隐藏
+/// \brief 遮罩关闭后等待画面刷新的延迟（毫秒），确保截屏时遮罩已隐藏
 constexpr int G_CLOSE_SETTLE_MS = 50;
 /// \brief Win11 强调色 RGB 分量
 const int G_ACCENT_R = 0;
@@ -365,7 +365,7 @@ void WindowSelector::mousePressEvent(QMouseEvent* event)
 {
     if (event->button() == Qt::LeftButton)
     {
-        // 先关闭遮罩，再延迟发射信号，确保截图时遮罩已隐藏
+        // 先关闭遮罩，再延迟发射信号，确保截屏时遮罩已隐藏
         close();
         if (m_currentHwnd != nullptr)
         {

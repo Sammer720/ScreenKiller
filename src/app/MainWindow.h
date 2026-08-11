@@ -92,7 +92,7 @@ private Q_SLOTS:
     void onTrayActivated(QSystemTrayIcon::ActivationReason reason);
     /// @brief 关闭按钮触发：发射 requestQuit 信号
     void onQuitRequested();
-    /// @brief 保存截图到文件
+    /// @brief 保存截屏到文件
     void onSaveRequested();
     /// @brief 标注视图右键复制图片完成，触发托盘通知
     void onViewImageCopied();

@@ -62,11 +62,11 @@ constexpr int G_WINDOW_DEFAULT_HEIGHT = 600;
 constexpr int G_CAPTURE_DELAY_MS   = 120;
 /// \brief 系统托盘气泡提示显示时长（毫秒）
 constexpr int G_TRAY_NOTICE_DURATION_MS = 3000;
-/// \brief 默认截图保存子目录名
+/// \brief 默认截屏保存子目录名
 const QString G_SCREENSHOT_SUBDIR = QStringLiteral("Screenshots");
-/// \brief 截图文件名前缀
+/// \brief 截屏文件名前缀
 const QString G_SCREENSHOT_PREFIX  = QStringLiteral("screenshot_");
-/// \brief 默认截图时间戳格式
+/// \brief 默认截屏时间戳格式
 const QString G_TIMESTAMP_FORMAT   = QStringLiteral("yyyyMMdd_HHmmss");
 /// \brief 中央栈页面索引：占位页
 constexpr int G_PAGE_PLACEHOLDER   = 0;
@@ -159,7 +159,7 @@ void MainWindow::setupUi()
         "<td style='text-align: right; padding-right: 40px; "
         "color: #6B5B95; font-weight: 600; white-space: nowrap;'>"
         "Ctrl + S</td>"
-        "<td style='text-align: left; color: #3A3357;'>保存截图</td>"
+        "<td style='text-align: left; color: #3A3357;'>保存截屏</td>"
         "</tr>"
         "<tr>"
         "<td style='text-align: right; padding-right: 40px; "
@@ -294,7 +294,7 @@ void MainWindow::registerHotkeys()
             this,
             tr("警告"),
             tr("存在其他进程占用快捷键 Ctrl + Alt + A 。\n"
-               "将无法使用快捷键截图，请关闭冲突进程后重启。"));
+               "将无法使用快捷键截屏，请关闭冲突进程后重启。"));
     }
 }
 
@@ -490,7 +490,7 @@ void MainWindow::onCaptureFinished(const QImage& image)
         SK::utils::showWarning(
             this,
             tr("警告"),
-            tr("未能获取到截图，请重试。"));
+            tr("未能获取到截屏，请重试。"));
         showNormal();
         return;
     }
@@ -515,11 +515,11 @@ void MainWindow::onCaptureFinished(const QImage& image)
     // 显示保存按钮
     m_toolBar->setShowSaveButton(true);
 
-    // 截图成功后自动复制到剪贴板
+    // 截屏成功后自动复制到剪贴板
     QGuiApplication::clipboard()->setImage(image, QClipboard::Clipboard);
 
     // 用系统托盘气泡提示用户（与标注页右键复制的通知共用同一实现）
-    showImageCopiedNotice(tr("截图完成"));
+    showImageCopiedNotice(tr("截屏完成"));
 
     // 显示并激活主窗口
     showNormal();
@@ -586,7 +586,7 @@ void MainWindow::onSaveRequested()
     if (img.isNull())
     {
         SK_LOG_WARN() << "导出图像为空，无法保存。";
-        SK::utils::showWarning(this, tr("警告"), tr("没有可保存的截图。"));
+        SK::utils::showWarning(this, tr("警告"), tr("没有可保存的截屏。"));
         return;
     }
 
@@ -604,7 +604,7 @@ void MainWindow::onSaveRequested()
                           + QStringLiteral(".png");
 
     QString filePath = QFileDialog::getSaveFileName(
-        this, tr("保存截图"), defaultPath,
+        this, tr("保存截屏"), defaultPath,
         tr("PNG 图像 (*.png);;JPEG 图像 (*.jpg);;BMP 图像 (*.bmp)"));
     if (filePath.isEmpty())
     {
@@ -622,7 +622,7 @@ void MainWindow::onSaveRequested()
                                 tr("无法写入文件：\n%1").arg(filePath));
         return;
     }
-    SK_LOG_INFO() << "截图已保存至:" << filePath;
+    SK_LOG_INFO() << "截屏已保存至:" << filePath;
 }
 
 void MainWindow::onViewImageCopied()

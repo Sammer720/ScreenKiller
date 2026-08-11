@@ -1,5 +1,5 @@
 # =============================================================================
-# ScreenKiller - Windows 长截图与图像标注工具
+# ScreenKiller - Windows 长截屏与图像标注工具
 # 基于 Qt 6.11+ / OpenCV 5.x / Windows API
 # =============================================================================
 cmake_minimum_required(VERSION 3.21)
@@ -7,7 +7,7 @@ cmake_minimum_required(VERSION 3.21)
 # ---------- 项目信息 ----------
 project(ScreenKiller
     VERSION 1.1.0
-    DESCRIPTION "Windows 长截图（滚动截屏）与图像标注工具"
+    DESCRIPTION "Windows 长截屏（滚动截屏）与图像标注工具"
     LANGUAGES CXX
 )
 
@@ -290,7 +290,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
 
     # Windows 系统库
     user32      # RegisterHotKey, SendInput, GetForegroundWindow
-    gdi32       # 屏幕截图辅助
+    gdi32       # 屏幕截屏辅助
     dwmapi      # DwmGetWindowAttribute（获取真实窗口矩形）
     shell32     # Shell_NotifyIcon（托盘）
     comctl32    # 通用控件
@@ -396,7 +396,7 @@ install(FILES "${CMAKE_SOURCE_DIR}/LICENSE"
 set(CPACK_PACKAGE_NAME "ScreenKiller")
 set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
 set(CPACK_PACKAGE_VENDOR "Sammer")
-set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Windows 长截图与图像标注工具")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Windows 长截屏与图像标注工具")
 set(CPACK_PACKAGE_INSTALL_DIRECTORY "ScreenKiller")
 set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_SOURCE_DIR}/LICENSE")
 set(CPACK_OUTPUT_FILE_PREFIX "${CMAKE_SOURCE_DIR}/build/dist")
@@ -445,7 +445,7 @@ elseif(UNIX)
     set(CPACK_GENERATOR "DEB;RPM;ZIP")
     set(CPACK_SYSTEM_NAME "linux")
     set(CPACK_DEBIAN_PACKAGE_MAINTAINER "Sammer")
-    set(CPACK_DEBIAN_PACKAGE_DESCRIPTION "Windows 长截图与图像标注工具")
+    set(CPACK_DEBIAN_PACKAGE_DESCRIPTION "Windows 长截屏与图像标注工具")
     set(CPACK_RPM_PACKAGE_LICENSE "MIT")
     set(CPACK_RPM_PACKAGE_VENDOR "Sammer")
 endif()
