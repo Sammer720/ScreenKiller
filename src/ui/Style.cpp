@@ -44,6 +44,12 @@ QString Style::windows11LightInline()
             font-family: "Microsoft YaHei UI", "Segoe UI", sans-serif;
             font-size: 13px;
         }
+        /* 引导面板及其子控件透明背景：让 GuidePanel 的半透明自绘背景透出 */
+        QWidget#guidePanel,
+        QWidget#guidePanel QLabel,
+        QWidget#guideContent {
+            background: transparent;
+        }
         QMainWindow { background: #FBF7EF; }
         QToolBar {
             background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
