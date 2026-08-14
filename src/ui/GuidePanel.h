@@ -13,6 +13,8 @@
  * 设计说明：
  *   作为中央页栈（QStackedWidget）的子控件叠加在标注页角落，
  *   鼠标左键点击整块面板区域即可切换 折叠 / 展开 两种形态。
+ *   折叠状态经 QSettings 持久化：首次启动默认展开，用户收起后
+ *   下次启动保持收起，直至再次点击展开。
  */
 #pragma once
 
@@ -22,6 +24,7 @@ class QGridLayout;
 class QLabel;
 class QMouseEvent;
 class QPaintEvent;
+class QSettings;
 
 namespace SK {
 
@@ -33,7 +36,8 @@ namespace SK {
  *     + 5 行快捷键提示（Ctrl+S / Del+Del / Del+Del+Del / Ctrl+Z / Ctrl+Y）
  *   - 底部一行：左侧“点击隐藏”小字提示 + 右侧当前视图缩放百分比
  *
- * 整块面板左键点击可折叠为小浮动控件，再次点击展开。
+ * 整块面板左键点击可折叠为小浮动控件，再次点击展开；
+ * 折叠/展开状态写回 QSettings（guidePanel/collapsed），下次启动恢复。
  */
 class GuidePanel : public QWidget
 {
@@ -59,8 +63,11 @@ protected:
     void paintEvent(QPaintEvent* event) override;
 
 private:
-    /// @brief 切换折叠/展开状态
+    /// @brief 切换折叠/展开状态（切换后写回 QSettings 持久化）
     void toggleCollapsed();
+
+    /// @brief 按当前折叠状态应用外观：折叠时隐藏全部内容并收缩为小方块，展开时恢复完整内容与尺寸
+    void applyCollapsedState();
 
     /**
      * @brief 构建操作提示行网格：图标行（图标 + 操作 + 含义）与快捷键行（按键跨列 + 含义）
@@ -71,7 +78,8 @@ private:
     QWidget* m_contentWidget = nullptr; ///< 操作提示内容容器（网格布局承载各行）
     QLabel*  m_hintLabel     = nullptr; ///< 左下角「点击隐藏」小字提示
     QLabel*  m_zoomLabel     = nullptr; ///< 缩放比例显示
-    bool     m_collapsed     = false;   ///< 是否折叠状态
+    bool     m_collapsed     = false;   ///< 是否折叠状态（首次启动默认展开，之后由 QSettings 恢复）
+    QSettings* m_settings    = nullptr; ///< 配置读写（默认构造，跟随 main.cpp 的 org/app 与 INI 格式）
 };
 
 } // namespace SK

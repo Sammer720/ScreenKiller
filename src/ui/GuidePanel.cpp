@@ -21,6 +21,7 @@
 #include <QPainter>
 #include <QPainterPath>
 #include <QPixmap>
+#include <QSettings>
 #include <QString>
 #include <QtGlobal>
 #include <QHBoxLayout>
@@ -71,6 +72,8 @@ const QString G_CONTENT_STYLE = QStringLiteral(
     "font-size: %1px; color: %2;")
         .arg(G_CONTENT_FONT_SIZE)
         .arg(G_CONTENT_COLOR);
+/// \brief 折叠状态持久化键（无记录时默认展开）
+const QString G_KEY_COLLAPSED = QStringLiteral("guidePanel/collapsed");
 } // namespace
 
 GuidePanel::GuidePanel(QWidget* parent)
@@ -78,6 +81,11 @@ GuidePanel::GuidePanel(QWidget* parent)
 {
     setAttribute(Qt::WA_TranslucentBackground, true);
     setObjectName(QStringLiteral("guidePanel"));
+
+    // 配置读写：默认构造跟随 main.cpp 的 org/app 与 INI 格式，
+    // 无记录时默认展开（m_collapsed = false），收起状态在 toggleCollapsed 中写回
+    m_settings = new QSettings(this);
+    m_collapsed = m_settings->value(G_KEY_COLLAPSED, false).toBool();
 
     // 1. 初始化操作提示区：网格布局承载图标行与快捷键行
     m_contentWidget = new QWidget(this);
@@ -118,7 +126,8 @@ GuidePanel::GuidePanel(QWidget* parent)
     layout->addStretch();
     layout->addLayout(bottomLayout);
 
-    setFixedSize(G_EXPANDED_W, G_EXPANDED_H);
+    // 恢复持久化的折叠状态外观：默认展开；上次收起时启动即为小浮动控件
+    applyCollapsedState();
 }
 
 void GuidePanel::buildGuideRows(QGridLayout* guideGrid)
@@ -215,7 +224,14 @@ void GuidePanel::mousePressEvent(QMouseEvent* event)
 
 void GuidePanel::toggleCollapsed()
 {
+    // 翻转折叠标志并写回 QSettings，保证下次启动恢复本次状态
     m_collapsed = !m_collapsed;
+    m_settings->setValue(G_KEY_COLLAPSED, m_collapsed);
+    applyCollapsedState();
+}
+
+void GuidePanel::applyCollapsedState()
+{
     if (m_collapsed)
     {
         // 折叠：隐藏全部内容，缩小为小浮动控件

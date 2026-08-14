@@ -8,6 +8,10 @@
 
 #include <QtGlobal>
 #include <QColor>
+#include <QFont>
+#include <QFontDatabase>
+#include <QString>
+#include <QStringList>
 #include <QVector>
 
 namespace SK {
@@ -47,5 +51,40 @@ const QVector<QColor> G_HIGHLIGHTER_COLOR_PALETTE = {
     QColor("#FFD400"), QColor("#8BC34A"), QColor("#9575CD"),
     QColor("#81D4FA"), QColor("#FFCC80"), QColor("#F48FB1")
 };
+
+/**
+ * @brief 解析当前平台默认安装的、同时支持中英文的文字标注字体族
+ *
+ * 不存在单一字体在 Win/Linux/macOS 三平台都默认预装，故按平台候选顺序
+ * 检测系统已安装字体：Windows 优先微软雅黑、macOS 优先苹方、Linux 优先
+ * 思源黑体/文泉驿微米黑；全部缺失时回退系统默认字体（必然存在，且随
+ * 系统语言正常显示中英文）。结果缓存于局部静态变量，避免重复扫描字体表。
+ *
+ * @return 解析得到的字体族名称
+ */
+inline QString defaultFontFamily()
+{
+    // 各平台默认安装且同时支持中英文的候选字体族（按优先级排序）
+    static const QStringList fontCandidates = {
+        QStringLiteral("Microsoft YaHei"),     ///< Windows（Vista 起系统默认预装）
+        QStringLiteral("PingFang SC"),         ///< macOS（10.11 起系统默认预装）
+        QStringLiteral("Noto Sans CJK SC"),    ///< Linux（多数现代发行版默认预装）
+        QStringLiteral("WenQuanYi Micro Hei"), ///< Linux（老发行版常见中文字体）
+        QStringLiteral("Noto Sans SC"),        ///< Linux（部分发行版使用该字体族名）
+    };
+    // 缓存已安装字体表：QFontDatabase::families() 每次调用都会全量扫描，代价较高
+    static const QStringList installedFamilies = QFontDatabase::families();
+
+    // 按优先级返回第一个已安装的候选字体
+    for (const QString& candidate : fontCandidates)
+    {
+        if (installedFamilies.contains(candidate))
+        {
+            return candidate;
+        }
+    }
+    // 全平台兜底：系统默认字体必然存在，且随系统语言支持中英文显示
+    return QFont().family();
+}
 
 } // namespace SK
