@@ -244,6 +244,9 @@ void MainWindow::setupUi()
     // 标注视图右键复制成品图成功后，触发统一的托盘气泡通知
     connect(m_view, &AnnotationView::imageCopied,
             this, &MainWindow::onViewImageCopied);
+    // Delete 三连击：复位页面到初始状态
+    connect(m_view, &AnnotationView::resetToInitialRequested,
+            this, &MainWindow::onResetToInitialRequested);
 
     m_centralStack->setCurrentIndex(G_PAGE_PLACEHOLDER);
 }
@@ -648,6 +651,43 @@ void MainWindow::onViewImageCopied()
 {
     // 标注页右键复制成品图成功：复用统一的托盘气泡通知
     showImageCopiedNotice(tr("复制成功"));
+}
+
+void MainWindow::onResetToInitialRequested()
+{
+    SK_LOG_INFO() << "Delete 三连击：复位页面到初始状态。";
+
+    // 1. 完全清空标注场景（含背景图像与撤销栈），回到未加载截屏的初始状态
+    if (m_scene != nullptr)
+    {
+        m_scene->resetScene();
+    }
+    // 2. 复位视图变换（100% 缩放 + 居中）
+    if (m_view != nullptr)
+    {
+        m_view->resetToDefault();
+    }
+    // 3. 中央页栈切回占位页（标题 + 快捷键引导）
+    if (m_centralStack != nullptr)
+    {
+        m_centralStack->setCurrentIndex(G_PAGE_PLACEHOLDER);
+    }
+    // 4. 收起标注工具栏展开的弹层并整体隐藏（仅标注页需要）
+    if (m_annToolBar != nullptr)
+    {
+        m_annToolBar->collapseExpanded();
+        m_annToolBar->hide();
+    }
+    // 5. 隐藏标注页悬浮引导面板
+    if (m_guidePanel != nullptr)
+    {
+        m_guidePanel->hide();
+    }
+    // 6. 隐藏保存按钮（仅标注页需要）
+    if (m_toolBar != nullptr)
+    {
+        m_toolBar->setShowSaveButton(false);
+    }
 }
 
 void MainWindow::showImageCopiedNotice(const QString& title)

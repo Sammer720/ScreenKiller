@@ -10,7 +10,7 @@
  *   - 平移边界：滚动范围按图片尺寸比例扩展，允许图片边缘移出视口但受边界约束
  *   - 滚动条隐藏（平移仅靠中键拖动）
  *   - 支持 Ctrl+Z / Ctrl+Y 转发到 Scene 的 UndoStack
- *   - Delete 键删除选中图元
+ *   - Delete 双击清空所有标注，三连击复位页面到初始状态
  */
 #pragma once
 
@@ -69,6 +69,9 @@ Q_SIGNALS:
 
     /// @brief 当前标注成品图已成功复制到系统剪贴板
     void imageCopied();
+
+    /// @brief Delete 三连击请求复位页面到初始状态（由主窗口响应：清空场景并切回占位页）
+    void resetToInitialRequested();
 
 private Q_SLOTS:
     /**
@@ -157,5 +160,6 @@ private:
     QPointer<QLineEdit> m_textEditor;             ///< 文字内联编辑器（viewport 子控件，不进场景）
     SK::TextItem* m_editingTextItem = nullptr;    ///< 正在编辑的文字图元（生命周期由场景/关闭流程保证）
     bool m_editorClosing = false;                 ///< 编辑器关闭守卫（防 editingFinished 重入）
-    QElapsedTimer m_deleteTimer;                  ///< Delete 双击计时器（间隔 ≤400ms 判定双击清空）
+    QElapsedTimer m_deleteTimer;                  ///< Delete 连击计时器（间隔 ≤400ms 判定连击）
+    int m_deletePressCount = 0;                 ///< Delete 连击次数（阈值内连续按下计数，区分双击/三连击）
 };

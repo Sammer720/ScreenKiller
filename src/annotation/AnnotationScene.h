@@ -183,6 +183,14 @@ public:
     void clearAllAnnotations();
 
     /**
+     * @brief 完全清空场景：清空标注图元、撤销栈并移除背景图像，复位到初始状态
+     *
+     * 与 clearAllAnnotations 的区别：本方法连背景图元一并移除，
+     * 使场景回到未加载任何截屏的初始状态（Delete 三连击复位页面时调用）。
+     */
+    void resetScene();
+
+    /**
      * @brief 设置荧光笔透明度（新创建的荧光笔图元使用）
      * @param alpha 透明度（20..220）
      */

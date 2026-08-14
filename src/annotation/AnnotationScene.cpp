@@ -259,6 +259,22 @@ void AnnotationScene::clearAllAnnotations()
     m_currentItem = nullptr;
 }
 
+void AnnotationScene::resetScene()
+{
+    // 1. 先清空标注图元与撤销栈（背景图元保留，由下一步单独移除）
+    clearAllAnnotations();
+
+    // 2. 移除背景图元并复位背景图像，回到未加载截屏的初始状态
+    if (m_bgItem != nullptr)
+    {
+        removeItem(m_bgItem);
+        delete m_bgItem;
+        m_bgItem = nullptr;
+    }
+    m_bgImage = QImage();
+    setSceneRect(QRectF());
+}
+
 void AnnotationScene::setHighlighterAlpha(int alpha)
 {
     m_highlighterAlpha = alpha;

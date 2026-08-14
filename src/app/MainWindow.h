@@ -96,6 +96,8 @@ private Q_SLOTS:
     void onSaveRequested();
     /// @brief 标注视图右键复制图片完成，触发托盘通知
     void onViewImageCopied();
+    /// @brief Delete 三连击：复位页面到初始状态（清空场景并切回占位页）
+    void onResetToInitialRequested();
 
 private:
     /// @brief 构造 UI 控件与布局

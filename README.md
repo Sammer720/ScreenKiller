@@ -93,6 +93,7 @@ cpack --preset package_release -D CPACK_PACKAGE_VERSION=1.2.0 -D CPACK_PACKAGE_F
 | 滚动中键 | 缩放画布 |
 | 拖动中键 | 平移视图，查看画布 |
 | `Delete + Delete` | 清除所有编辑内容 |
+| `Delete + Delete + Delete` | 复位页面到初始状态（标题与快捷键引导页） |
 | `Ctrl+Z` / `Ctrl+Y` | 撤销 / 重做 |
 
 

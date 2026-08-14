@@ -34,6 +34,8 @@ const int G_BG_B = 239;
 constexpr qreal G_PAN_MARGIN_RATIO = 0.25;
 /// \brief 中键「点击」与「拖动」的判定阈值（像素，曼哈顿距离）
 constexpr int G_PAN_CLICK_THRESHOLD = 4;
+/// \brief Delete 连击判定间隔（毫秒）：相邻两次按下的间隔不超过该值才计入连击
+constexpr int G_DELETE_COMBO_INTERVAL_MS = 400;
 
 } // namespace
 
@@ -205,19 +207,33 @@ void AnnotationView::keyPressEvent(QKeyEvent* event)
         event->accept();
         return;
     }
-    // Delete 双击（间隔 ≤400ms）清空所有标注；单击 Delete 不做任何事
+    // Delete 连击：单击不做任何事；双击（间隔 ≤400ms）清空所有标注；
+    // 三连击彻底复位页面到初始状态（由主窗口响应）
     if ((event->key() == Qt::Key_Delete) && (!event->isAutoRepeat())
         && (m_scene != nullptr))
     {
-        if (m_deleteTimer.isValid() && (m_deleteTimer.elapsed() <= 400))
+        const bool isInComboWindow =
+            m_deleteTimer.isValid()
+            && (m_deleteTimer.elapsed() <= G_DELETE_COMBO_INTERVAL_MS);
+        if (isInComboWindow && (m_deletePressCount >= 2))
         {
-            // 二次按下的间隔在阈值内：判定为双击，清空所有标注并复位计时器
-            m_scene->clearAllAnnotations();
+            // 连击窗口内的第三次按下：判定为三连击，请求主窗口复位页面到初始状态
+            Q_EMIT resetToInitialRequested();
             m_deleteTimer.invalidate();
+            m_deletePressCount = 0;
+        }
+        else if (isInComboWindow)
+        {
+            // 连击窗口内的第二次按下：判定为双击，清空所有标注并保持连击计数，
+            // 计时器继续运行以捕捉可能紧随其后的第三次按下
+            m_scene->clearAllAnnotations();
+            m_deletePressCount = 2;
+            m_deleteTimer.restart();
         }
         else
         {
-            // 首次按下（或距上次超过阈值）：启动/刷新计时器，等待可能的第二次按下
+            // 首次按下（或距上次超过阈值）：重新开始连击计数
+            m_deletePressCount = 1;
             m_deleteTimer.start();
         }
         event->accept();
