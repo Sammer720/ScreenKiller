@@ -428,10 +428,12 @@ void ScrollCapture::captureFrame()
     }
 
     // 抓取屏幕 -> 裁剪到目标区域（含 DPI 校正）
-    // 实际截屏区域比画框选区每边内缩 2px，避免截到蓝色边框
+    // 实际截屏区域比画框选区四周各内缩 1px，避开 RegionSelector 的蓝色边框；
+    // 右侧再额外多内缩 1px：框选释放瞬间，十字光标的 3px 暗色描边（以光标线为中心）
+    // 会在选区右边缘内侧留下一列黑色残影，首帧抓取时被一并截入，故向右收敛 1px 剔除
     QPixmap full = screen->grabWindow(G_FULLSCREEN_WID);
     qreal ratio = full.devicePixelRatio();
-    QRect captureRect = m_targetRect.adjusted(1, 1, -1, -1);
+    QRect captureRect = m_targetRect.adjusted(1, 1, -2, -1);
     QRectF deviceRect(captureRect.x() * ratio, captureRect.y() * ratio,
                       captureRect.width() * ratio, captureRect.height() * ratio);
     QImage frame = full.copy(deviceRect.toAlignedRect()).toImage();
