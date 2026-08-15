@@ -1,0 +1,18 @@
+/**
+ * \file AppInfo.h
+ * \brief 由 CMake 配置期生成的运行期版本与更新源信息
+ *
+ * 本文件由 src/update/AppInfo.h.in 经 configure_file(@ONLY) 生成，
+ * 输出到构建目录 generated/update/AppInfo.h，请勿手动修改。
+ * 版本号 @PROJECT_VERSION@ 与打包版本（exe 属性 / 包文件名 / 注册表 DisplayVersion）同源。
+ */
+#pragma once
+
+/// \brief 运行期版本号（源自 project(VERSION)，与打包版本同源）
+#define SK_APP_VERSION "@PROJECT_VERSION@"
+
+/// \brief GitHub 仓库全名（owner/repo），自动更新主检测源
+#define SK_GITHUB_REPO "@SK_GITHUB_REPO_FULL_NAME@"
+
+/// \brief Gitee 仓库全名（owner/repo），更新回落源（国内网络优先可访问）
+#define SK_GITEE_REPO "@SK_GITEE_REPO_FULL_NAME@"

@@ -17,8 +17,8 @@ constexpr int G_HIGHLIGHT_R = 255;
 constexpr int G_HIGHLIGHT_G = 235;
 /// \brief 默认荧光黄色 RGB 蓝色分量
 constexpr int G_HIGHLIGHT_B = 59;
-/// \brief 默认荧光笔线宽
-constexpr qreal G_HIGHLIGHT_WIDTH = 18.0;
+/// \brief 默认荧光笔线宽（与工具栏荧光笔默认 25px 一致，创建后通常被场景参数覆盖）
+constexpr qreal G_HIGHLIGHT_WIDTH = 25.0;
 /// \brief 至少需要的控制点数才能绘制（需 ≥2 点）
 constexpr int G_MIN_POINTS_TO_DRAW = 2;
 }

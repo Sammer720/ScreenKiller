@@ -20,6 +20,7 @@
 #include "app/MainWindow.h"
 #include "ui/Style.h"
 #include "utils/Logger.h"
+#include "update/AppInfo.h"
 
 namespace {
 
@@ -27,8 +28,6 @@ namespace {
 const QString G_APP_NAME = QStringLiteral("ScreenKiller");
 /// \brief 组织名称
 const QString G_ORG_NAME = QStringLiteral("Sammer");
-/// \brief 应用版本号
-const QString G_APP_VERSION = QStringLiteral("1.1.0");
 /// \brief QSS 样式表资源路径
 const QString G_QSS_PATH = QStringLiteral(":/styles/windows11_light.qss");
 /// \brief 霞鹜文楷 Lite 字体资源路径（中文）
@@ -50,7 +49,7 @@ int main(int argc, char* argv[])
     QApplication app(argc, argv);
     QApplication::setApplicationName(G_APP_NAME);
     QApplication::setOrganizationName(G_ORG_NAME);
-    QApplication::setApplicationVersion(G_APP_VERSION);
+    QApplication::setApplicationVersion(QStringLiteral(SK_APP_VERSION));
     // 配置 QSettings 默认使用 INI 文件（而非 Windows 注册表），全局唯一配置源
     QSettings::setDefaultFormat(QSettings::IniFormat);
     // portable.txt 双模式：exe 同目录有标记文件则配置写 exe 同目录，否则走 %APPDATA%

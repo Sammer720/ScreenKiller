@@ -36,9 +36,11 @@ QWidget {
 
 /* 引导面板：子控件透明背景，让面板的半透明自绘背景透出
  * 注意：全局 QWidget 规则会被 QLabel 继承，若不覆盖则子控件
- * 的不透明背景色会盖住 GuidePanel 的 paintEvent 半透明圆角。 */
+ * 的不透明背景色会盖住 GuidePanel 的 paintEvent 半透明圆角。
+ * guideContent 是提示列表的容器 QWidget，同样需要透明。 */
 QWidget#guidePanel,
-QWidget#guidePanel QLabel {
+QWidget#guidePanel QLabel,
+QWidget#guideContent {
     background: transparent;
 }
 

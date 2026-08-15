@@ -33,6 +33,7 @@
 #endif
 
 #include "capture/CaptureEngine.h"
+#include "update/UpdateInfo.h"
 
 class QStackedWidget;
 class QLabel;
@@ -46,6 +47,10 @@ class ToolBar;
 class AnnotationScene;
 class GuidePanel;
 class AnnotationToolBar;
+
+namespace update {
+class UpdateChecker;
+}
 
 class MainWindow : public QMainWindow
 {
@@ -96,6 +101,16 @@ private Q_SLOTS:
     void onSaveRequested();
     /// @brief 标注视图右键复制图片完成，触发托盘通知
     void onViewImageCopied();
+    /// @brief Delete 三连击：复位页面到初始状态（清空场景并切回占位页）
+    void onResetToInitialRequested();
+    /// @brief 托盘菜单「检查更新」手动触发
+    void onManualUpdateCheck();
+    /// @brief 检测到可用更新
+    void onUpdateAvailable(const update::ReleaseInfo& releaseInfo);
+    /// @brief 已是最新版本
+    void onUpdateUpToDate();
+    /// @brief 检查失败
+    void onUpdateCheckFailed(const QString& reason);
 
 private:
     /// @brief 构造 UI 控件与布局
@@ -130,6 +145,20 @@ private:
     /// 工具栏是中央页栈的直接子控件，叠加显示在标注页之上；
     /// 窗口尺寸变化时由 resizeEvent 统一调用，保证位置跟随窗口缩放。
     void updateAnnotationToolBarGeometry();
+    /// @brief 启动自动更新检查（带冷却间隔判断）
+    void startAutoUpdateCheck();
+    /// @brief 发起一次更新检查
+    /// @param isManual 是否为用户手动触发（true 手动 / false 自动）
+    void startUpdateCheck(bool isManual);
+    /// @brief 模态展示更新对话框，并按用户选择执行对应动作
+    /// @param releaseInfo 待展示的发布信息
+    void showUpdateDialog(const update::ReleaseInfo& releaseInfo);
+    /// @brief 打开与发行版匹配的下载地址（仅打开浏览器，不执行下载安装）
+    /// @param releaseInfo 发布信息
+    void openDownloadUrl(const update::ReleaseInfo& releaseInfo);
+    /// @brief 记录用户选择跳过的版本号
+    /// @param versionString 被跳过的版本号
+    void rememberIgnoredVersion(const QString& versionString);
 
     ToolBar*            m_toolBar        = nullptr;  ///< 顶部工具栏
     QStackedWidget*     m_centralStack   = nullptr;  ///< 中心页栈（占位/标注视口切换）
@@ -142,6 +171,10 @@ private:
     CaptureEngine*      m_capture        = nullptr;  ///< 截屏引擎
     GuidePanel*         m_guidePanel     = nullptr;  ///< 标注页悬浮引导面板
     AnnotationToolBar*  m_annToolBar     = nullptr;  ///< 标注工具栏（标注页右侧悬浮）
+    update::UpdateChecker* m_updateChecker   = nullptr;  ///< 更新检测器
+    update::ReleaseInfo    m_latestRelease;              ///< 最近检测到的新版信息（气泡点击回调用）
+    bool                   m_isManualCheck     = false;  ///< 当前检查是否为手动触发
+    bool                   m_updateDialogShown = false;  ///< 更新对话框是否正在展示（防重入）
 
     static constexpr int kHotKeyId = 0x0001;   ///< Ctrl+Alt+A 的快捷键 ID
 };

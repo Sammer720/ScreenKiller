@@ -191,6 +191,12 @@ UndoStack* AnnotationScene::undoStack()
 
 AnnotationScene::AnnotationScene(QObject* parent) : QGraphicsScene(parent)
 {
+    // 注入默认参数：字体取平台默认中英文字体，颜色取标注色板首色，
+    // 与工具栏首次使用默认值保持一致（后续由工具栏信号覆盖）
+    m_fontFamily = SK::defaultFontFamily();
+    m_penColor = SK::G_ANNOTATION_COLOR_PALETTE.first();
+    m_brushColor = m_penColor;
+
     m_undoStack = new UndoStack(this, G_UNDO_LIMIT);
     connect(m_undoStack, &UndoStack::changed, this,
             &AnnotationScene::historyChanged);
@@ -257,6 +263,22 @@ void AnnotationScene::clearAllAnnotations()
     }
     // 复位创建状态指针，防止后续悬垂访问
     m_currentItem = nullptr;
+}
+
+void AnnotationScene::resetScene()
+{
+    // 1. 先清空标注图元与撤销栈（背景图元保留，由下一步单独移除）
+    clearAllAnnotations();
+
+    // 2. 移除背景图元并复位背景图像，回到未加载截屏的初始状态
+    if (m_bgItem != nullptr)
+    {
+        removeItem(m_bgItem);
+        delete m_bgItem;
+        m_bgItem = nullptr;
+    }
+    m_bgImage = QImage();
+    setSceneRect(QRectF());
 }
 
 void AnnotationScene::setHighlighterAlpha(int alpha)

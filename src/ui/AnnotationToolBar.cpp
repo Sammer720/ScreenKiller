@@ -138,15 +138,15 @@ const QString G_KEY_TEXT_FONT_FAMILY  = QStringLiteral("annotation/text/fontFami
 const QString G_KEY_MOSAIC_WIDTH      = QStringLiteral("annotation/mosaic/width");    ///< 马赛克宽度
 
 // ============================ 默认值（首次使用落值） ============================
-constexpr int G_DEFAULT_PEN_WIDTH     = 2;    ///< 水笔/直线/箭头/方框/圆默认宽度
-constexpr int G_DEFAULT_HL_WIDTH      = 18;   ///< 荧光笔默认宽度
-constexpr int G_HL_ALPHA_MIN          = 26;   ///< 荧光笔透明度下限（10%）
-constexpr int G_HL_ALPHA_MAX          = 230;  ///< 荧光笔透明度上限（90%）
-constexpr int G_DEFAULT_HL_ALPHA      = 100;  ///< 荧光笔默认透明度
-constexpr int G_DEFAULT_FONT_SIZE     = 12;   ///< 文字默认字号（pt）
-constexpr int G_DEFAULT_MOSAIC_WIDTH  = 20;   ///< 马赛克默认宽度
-const QString G_DEFAULT_FONT_FAMILY   = QStringLiteral("微软雅黑");  ///< 文字默认字体族
-// 描边类颜色默认值取各色板首色（标注色板首色 #FF0000，荧光笔色板首色 #FFEB3B）
+constexpr int G_DEFAULT_PEN_WIDTH     = 5;    ///< 水笔/直线/箭头/方框/圆默认宽度（px）
+constexpr int G_DEFAULT_HL_WIDTH      = 25;   ///< 荧光笔默认宽度（px）
+constexpr int G_HL_ALPHA_MIN          = 26;   ///< 荧光笔不透明度下限（10%）
+constexpr int G_HL_ALPHA_MAX          = 230;  ///< 荧光笔不透明度上限（90%）
+constexpr int G_DEFAULT_HL_ALPHA      = 153;  ///< 荧光笔默认不透明度（60%，0.6 × 255）
+constexpr int G_DEFAULT_FONT_SIZE     = 40;   ///< 文字默认字号（pt）
+constexpr int G_DEFAULT_MOSAIC_WIDTH  = 30;   ///< 马赛克默认宽度（px）
+// 描边类颜色默认值取各色板首色（标注色板首色 #D32F2F，荧光笔色板首色 #FFD400）
+// 文字默认字体族不做硬编码：defaultFontFamily() 按平台检测默认安装且支持中英文的字体
 
 // ============================ 参数框体页索引（页栈顺序与 ensureParamPanel 装入顺序一致） ============================
 constexpr int G_PAGE_PEN         = 0;   ///< 水笔参数页
@@ -163,7 +163,7 @@ const AnnotationToolBar::StrokeParamSpec G_PEN_SPEC = {
     static_cast<int>(SK::G_MIN_PEN_WIDTH), static_cast<int>(SK::G_MAX_PEN_WIDTH),
     G_DEFAULT_PEN_WIDTH, false, QString()
 };
-/// @brief 荧光笔参数规格：荧光笔色板 + 5~40 宽度 + 20~220 透明度渐变滑块
+/// @brief 荧光笔参数规格：荧光笔色板 + 15~45 宽度 + 26~230 不透明度渐变滑块
 const AnnotationToolBar::StrokeParamSpec G_HIGHLIGHTER_SPEC = {
     &SK::G_HIGHLIGHTER_COLOR_PALETTE, G_KEY_HL_COLOR, G_KEY_HL_WIDTH,
     static_cast<int>(SK::G_MIN_HIGHLIGHT_WIDTH), static_cast<int>(SK::G_MAX_HIGHLIGHT_WIDTH),
@@ -887,7 +887,7 @@ QWidget* AnnotationToolBar::createTextParam(ParamHandles* handlesOut)
     auto* fontCombo = new QFontComboBox(paramWidget);
     fontCombo->setObjectName(QStringLiteral("fontCombo"));
     const QString storedFamily = m_settings->value(G_KEY_TEXT_FONT_FAMILY,
-                                                   G_DEFAULT_FONT_FAMILY).toString();
+                                                   SK::defaultFontFamily()).toString();
     fontCombo->setCurrentFont(QFont(storedFamily));
     paramLayout->addWidget(fontCombo);
 
@@ -896,7 +896,7 @@ QWidget* AnnotationToolBar::createTextParam(ParamHandles* handlesOut)
     paramLayout->addWidget(createColorRow(SK::G_ANNOTATION_COLOR_PALETTE, G_KEY_TEXT_COLOR,
                                           ColorPaletteKind::Annotation, &colorGroup));
 
-    // 字号滑块（8~72，右侧数值带 pt 单位），范围按边界常量
+    // 字号滑块（12~81，右侧数值带 pt 单位），范围按边界常量
     const int storedFontSize = loadInt(G_KEY_TEXT_FONT_SIZE, G_DEFAULT_FONT_SIZE);
     QSlider* fontSizeSlider = nullptr;
     paramLayout->addWidget(createSliderRow(static_cast<int>(SK::G_MIN_FONT_SIZE),
@@ -1102,7 +1102,7 @@ void AnnotationToolBar::loadToolParamsToScene(SK::Tool tool)
         Q_EMIT fontSizeChanged(static_cast<qreal>(
             loadInt(G_KEY_TEXT_FONT_SIZE, G_DEFAULT_FONT_SIZE)));
         Q_EMIT fontFamilyChanged(
-            m_settings->value(G_KEY_TEXT_FONT_FAMILY, G_DEFAULT_FONT_FAMILY).toString());
+            m_settings->value(G_KEY_TEXT_FONT_FAMILY, SK::defaultFontFamily()).toString());
         break;
     case SK::Tool::Mosaic:
         Q_EMIT penWidthChanged(static_cast<qreal>(
@@ -1179,7 +1179,7 @@ void AnnotationToolBar::syncParamControlsToTool(SK::Tool tool)
         {
             const QSignalBlocker fontBlocker(handles.fontCombo);
             handles.fontCombo->setCurrentFont(
-                QFont(m_settings->value(G_KEY_TEXT_FONT_FAMILY, G_DEFAULT_FONT_FAMILY).toString()));
+                QFont(m_settings->value(G_KEY_TEXT_FONT_FAMILY, SK::defaultFontFamily()).toString()));
         }
         return;
     }

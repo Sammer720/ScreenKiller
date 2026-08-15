@@ -183,6 +183,14 @@ public:
     void clearAllAnnotations();
 
     /**
+     * @brief 完全清空场景：清空标注图元、撤销栈并移除背景图像，复位到初始状态
+     *
+     * 与 clearAllAnnotations 的区别：本方法连背景图元一并移除，
+     * 使场景回到未加载任何截屏的初始状态（Delete 三连击复位页面时调用）。
+     */
+    void resetScene();
+
+    /**
      * @brief 设置荧光笔透明度（新创建的荧光笔图元使用）
      * @param alpha 透明度（20..220）
      */
@@ -267,13 +275,13 @@ private:
     QImage               m_bgImage;              ///< 背景图像数据
 
     Tool      m_tool      = Tool::Select;         ///< 当前工具
-    QColor    m_penColor  { Qt::red };            ///< 画笔颜色
-    qreal     m_penWidth  = 2.0;                  ///< 画笔线宽
+    QColor    m_penColor  { Qt::red };            ///< 画笔颜色（构造函数中注入标注色板首色）
+    qreal     m_penWidth  = 5.0;                  ///< 画笔线宽（与工具栏水笔默认 5px 一致）
     QColor    m_brushColor{ Qt::transparent };    ///< 填充颜色
     Qt::BrushStyle m_brushStyle = Qt::NoBrush;    ///< 填充样式
-    int       m_highlighterAlpha = 100;           ///< 荧光笔透明度（新创建图元使用）
-    qreal     m_fontSize  = 12.0;                 ///< 文字字号（pt）
-    QString   m_fontFamily = QStringLiteral("微软雅黑");  ///< 文字字体族
+    int       m_highlighterAlpha = 153;           ///< 荧光笔不透明度（60%，与工具栏默认一致）
+    qreal     m_fontSize  = 40.0;                 ///< 文字字号（pt，与工具栏默认 40pt 一致）
+    QString   m_fontFamily;                       ///< 文字字体族（构造函数中注入平台默认字体）
 
     BaseAnnotationItem* m_currentItem = nullptr;  ///< 正在创建的图元
     QPointF   m_startPos;                          ///< 创建起点

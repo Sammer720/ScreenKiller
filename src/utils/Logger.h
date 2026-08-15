@@ -27,6 +27,8 @@ Q_DECLARE_LOGGING_CATEGORY(skStitcher)
 Q_DECLARE_LOGGING_CATEGORY(skAnnotation)
 /// \brief 平台层（WinApi）模块日志分类
 Q_DECLARE_LOGGING_CATEGORY(skPlatform)
+/// \brief 自动更新模块日志分类
+Q_DECLARE_LOGGING_CATEGORY(skUpdater)
 
 /// \brief 输出 Debug 级别主日志
 #define SK_LOG_DEBUG()   qCDebug(skLog)
@@ -45,3 +47,5 @@ Q_DECLARE_LOGGING_CATEGORY(skPlatform)
 #define SK_LOG_ANN()     qCDebug(skAnnotation)
 /// \brief 输出平台层 Debug 日志
 #define SK_LOG_PLT()     qCDebug(skPlatform)
+/// \brief 输出自动更新模块 Debug 日志
+#define SK_LOG_UPD()     qCDebug(skUpdater)

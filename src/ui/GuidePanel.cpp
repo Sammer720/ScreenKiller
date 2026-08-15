@@ -4,19 +4,24 @@
  *
  * 实现要点：
  *   1. 面板背景不依赖 QSS，直接在 paintEvent 中自绘半透明圆角矩形（WA_TranslucentBackground）。
- *   2. 内容区用 QLabel 富文本展示“鼠标按键图标 + 五行操作说明”（拖动平移 / 滚动缩放 / 点击复位 / 点击复制 / Ctrl+S保存），
- *      表格用 HTML attribute 形式指定列宽（Qt 富文本对 <td> CSS width 支持有限），第三列右侧留白用 &nbsp; 补位压到最小；
- *      缩放比例独立一个 QLabel。
+ *   2. 内容区用 QGridLayout 逐行摆放提示：
+ *        - 图标行：32px 图标（列0）+ 操作描述（列1）+ 含义（列2，右对齐）
+ *        - 快捷键行：按键文本跨列0/列1 左对齐（与图标行左缘对齐），含义在列2 右对齐
+ *      改用网格布局而非富文本表格的原因：Qt 富文本表格会把跨列单元格的内容宽度
+ *      均摊到被跨的各列上，「Del + Del + Del」等较长文本会把图标列撑宽，
+ *      网格布局用固定图标列 + 拉伸文本列精确控制，图标列恒为 32px。
  *   3. 左键点击整块面板在 折叠 / 展开 两种形态间切换，折叠时隐藏全部内容并收缩为小方块。
  */
 #include "GuidePanel.h"
 
 #include <QColor>
+#include <QGridLayout>
 #include <QLabel>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
 #include <QPixmap>
+#include <QSettings>
 #include <QString>
 #include <QtGlobal>
 #include <QHBoxLayout>
@@ -34,13 +39,24 @@ constexpr int G_BG_A = 180;   // ~70% 不透明度
 constexpr qreal G_CORNER_RADIUS = 10.0;
 /// \brief 面板内边距
 constexpr int G_PADDING = 5;
-/// \brief 展开尺寸（容纳 5 行操作提示：拖动平移 / 滚动缩放 / 点击复位 / 右键复制 / Ctrl+S保存 + 底部信息行）
-constexpr int G_EXPANDED_W = 165;
-constexpr int G_EXPANDED_H = 300;
+/// \brief 展开尺寸：宽度需容纳 图标列32 + 快捷键列（"Del + Del + Del"）+ 含义列（"清空全部"）
+constexpr int G_EXPANDED_W = 240;
+/// \brief 展开高度：9 行提示 x 32 + 底部信息行 + 边距
+constexpr int G_EXPANDED_H = 320;
 /// \brief 折叠尺寸
 constexpr int G_COLLAPSED_SIZE = 40;
 /// \brief 折叠状态下图标占面板边长的比例（缩放到 70% 居中显示）
 constexpr qreal G_COLLAPSED_ICON_RATIO = 0.7;
+/// \brief 图标列宽度（与 32px 图标一致）
+constexpr int G_ICON_COLUMN_WIDTH = 32;
+/// \brief 网格列间距（像素，替代原富文本单元格的 padding-right）
+constexpr int G_GRID_SPACING = 8;
+/// \brief 提示行最小高度（与 32px 图标匹配，保证行内垂直居中空间）
+constexpr int G_ROW_HEIGHT = 32;
+/// \brief 内容字号（与原富文本 div 的 font-size 一致）
+constexpr int G_CONTENT_FONT_SIZE = 15;
+/// \brief 内容文字颜色（与原富文本 div 的 color 一致）
+const QString G_CONTENT_COLOR = QStringLiteral("#5A3E1B");
 /// \brief 初始缩放显示文本
 const QString G_ZOOM_TEXT_INITIAL = QStringLiteral("缩放: 100%");
 /// \brief 缩放比例标签样式（深橙棕文字 + 中粗字重）
@@ -51,69 +67,14 @@ const QString G_HINT_TEXT = QStringLiteral("点击隐藏");
 /// \brief 「点击隐藏」小字样式（正文同色 + 半透明弱化，字号小于缩放标签）
 const QString G_HINT_STYLE = QStringLiteral(
     "color: rgb(90, 62, 27); font-size: 12px;");
-/// \brief 操作提示富文本（鼠标按键图标 + 四行说明 + Ctrl+S 快捷键行）
-/// QTextDocument 对 <td> 的 CSS width 支持有限，改用 HTML attribute 形式
-/// 让 Qt HtmlParser 正确解析列宽约束（绝对值 40/65 固定前两列，第三列吃剩余）；
-/// 第三列 text-align:right 让右侧文字紧贴 content 区右缘；
-/// Ctrl+S 行用 colspan 合并前两列写快捷键文本，与鼠标操作行风格一致
-const QString G_CONTENT_HTML = QStringLiteral(
-    "<div style='color: #5A3E1B; font-size: 15px;'>"
-    "<table border='0' cellspacing='0' cellpadding='0' style='vertical-align: middle;' width='100%'>"
-    "<tr height='32'>"
-    "<td width='40' style='padding-right: 8px; vertical-align: middle; text-align: left;'>"
-    "<img src=':/icons/mouse_mid.png' width='32' height='32' style='vertical-align: middle;'/>"
-    "</td>"
-    "<td width='65' style='padding-right: 8px; vertical-align: middle; text-align: left; white-space: nowrap;'>+ 拖动</td>"
-    "<td style='vertical-align: middle; text-align: right; white-space: nowrap;'>&nbsp;平移</td>"
-    "</tr>"
-    "<tr height='32'>"
-    "<td width='40' style='padding-right: 8px; vertical-align: middle; text-align: left;'>"
-    "<img src=':/icons/mouse_mid.png' width='32' height='32' style='vertical-align: middle;'/>"
-    "</td>"
-    "<td width='65' style='padding-right: 8px; vertical-align: middle; text-align: left; white-space: nowrap;'>+ 滚动</td>"
-    "<td style='vertical-align: middle; text-align: right; white-space: nowrap;'>&nbsp;缩放</td>"
-    "</tr>"
-    "<tr height='32'>"
-    "<td width='40' style='padding-right: 8px; vertical-align: middle; text-align: left;'>"
-    "<img src=':/icons/mouse_mid.png' width='32' height='32' style='vertical-align: middle;'/>"
-    "</td>"
-    "<td width='65' style='padding-right: 8px; vertical-align: middle; text-align: left; white-space: nowrap;'>+ 点击</td>"
-    "<td style='vertical-align: middle; text-align: right; white-space: nowrap;'>&nbsp;复位</td>"
-    "</tr>"
-    "<tr height='32'>"
-    "<td width='40' style='padding-right: 8px; vertical-align: middle; text-align: left;'>"
-    "<img src=':/icons/mouse_right.png' width='32' height='32' style='vertical-align: middle;'/>"
-    "</td>"
-    "<td width='65' style='padding-right: 8px; vertical-align: middle; text-align: left; white-space: nowrap;'>+ 点击</td>"
-    "<td style='vertical-align: middle; text-align: right; white-space: nowrap;'>&nbsp;复制</td>"
-    "</tr>"
-    "<tr height='32'>"
-    "<td colspan='2' width='105' style='padding-right: 8px; vertical-align: middle; text-align: left; white-space: nowrap; line-height: 32px;'>"
-    "Ctrl + S"
-    "</td>"
-    "<td style='vertical-align: middle; text-align: right; white-space: nowrap; line-height: 32px;'>保存</td>"
-    "</tr>"
-    "<tr height='32'>"
-    "<td colspan='2' width='105' style='padding-right: 8px; vertical-align: middle; text-align: left; white-space: nowrap; line-height: 32px;'>"
-    "Del + Del"
-    "</td>"
-    "<td style='vertical-align: middle; text-align: right; white-space: nowrap; line-height: 32px;'>清空</td>"
-    "</tr>"
-    "<tr height='32'>"
-    "<td colspan='2' width='105' style='padding-right: 8px; vertical-align: middle; text-align: left; white-space: nowrap; line-height: 32px;'>"
-    "Ctrl + Z"
-    "</td>"
-    "<td style='vertical-align: middle; text-align: right; white-space: nowrap; line-height: 32px;'>撤销</td>"
-    "</tr>"
-    "<tr height='32'>"
-    "<td colspan='2' width='105' style='padding-right: 8px; vertical-align: middle; text-align: left; white-space: nowrap; line-height: 32px;'>"
-    "Ctrl + Y"
-    "</td>"
-    "<td style='vertical-align: middle; text-align: right; white-space: nowrap; line-height: 32px;'>重做</td>"
-    "</tr>"
-    "</table>"
-    "</div>");
-}
+/// \brief 内容行文字样式（字号 + 颜色，背景由全局 QSS 保证透明）
+const QString G_CONTENT_STYLE = QStringLiteral(
+    "font-size: %1px; color: %2;")
+        .arg(G_CONTENT_FONT_SIZE)
+        .arg(G_CONTENT_COLOR);
+/// \brief 折叠状态持久化键（无记录时默认展开）
+const QString G_KEY_COLLAPSED = QStringLiteral("guidePanel/collapsed");
+} // namespace
 
 GuidePanel::GuidePanel(QWidget* parent)
     : QWidget(parent)
@@ -121,11 +82,22 @@ GuidePanel::GuidePanel(QWidget* parent)
     setAttribute(Qt::WA_TranslucentBackground, true);
     setObjectName(QStringLiteral("guidePanel"));
 
-    // 1. 初始化操作提示标签：富文本展示鼠标中键图标 + 文字
-    m_contentLabel = new QLabel(this);
-    m_contentLabel->setObjectName(QStringLiteral("guideContent"));
-    m_contentLabel->setTextFormat(Qt::RichText);
-    m_contentLabel->setText(G_CONTENT_HTML);
+    // 配置读写：默认构造跟随 main.cpp 的 org/app 与 INI 格式，
+    // 无记录时默认展开（m_collapsed = false），收起状态在 toggleCollapsed 中写回
+    m_settings = new QSettings(this);
+    m_collapsed = m_settings->value(G_KEY_COLLAPSED, false).toBool();
+
+    // 1. 初始化操作提示区：网格布局承载图标行与快捷键行
+    m_contentWidget = new QWidget(this);
+    m_contentWidget->setObjectName(QStringLiteral("guideContent"));
+    auto* guideGrid = new QGridLayout(m_contentWidget);
+    guideGrid->setContentsMargins(0, 0, 0, 0);
+    guideGrid->setHorizontalSpacing(G_GRID_SPACING);
+    guideGrid->setVerticalSpacing(0);
+    guideGrid->setColumnMinimumWidth(0, G_ICON_COLUMN_WIDTH);
+    guideGrid->setColumnStretch(1, 1);
+
+    buildGuideRows(guideGrid);
 
     // 2. 初始化「点击隐藏」提示标签：左下角小字，弱化显示
     m_hintLabel = new QLabel(G_HINT_TEXT, this);
@@ -150,11 +122,85 @@ GuidePanel::GuidePanel(QWidget* parent)
     auto* layout = new QVBoxLayout(this);
     layout->setContentsMargins(G_PADDING, G_PADDING, G_PADDING, G_PADDING);
     layout->setSpacing(4);
-    layout->addWidget(m_contentLabel);
+    layout->addWidget(m_contentWidget);
     layout->addStretch();
     layout->addLayout(bottomLayout);
 
-    setFixedSize(G_EXPANDED_W, G_EXPANDED_H);
+    // 恢复持久化的折叠状态外观：默认展开；上次收起时启动即为小浮动控件
+    applyCollapsedState();
+}
+
+void GuidePanel::buildGuideRows(QGridLayout* guideGrid)
+{
+    // 图标行数据：图标资源 + 操作描述 + 含义
+    struct IconRowSpec
+    {
+        QString iconPath;
+        QString operation;
+        QString meaning;
+    };
+    const IconRowSpec iconRows[] = {
+        { QStringLiteral(":/icons/mouse_mid.png"),   QStringLiteral("+ 拖动"), QStringLiteral("平移") },
+        { QStringLiteral(":/icons/mouse_mid.png"),   QStringLiteral("+ 滚动"), QStringLiteral("缩放") },
+        { QStringLiteral(":/icons/mouse_mid.png"),   QStringLiteral("+ 点击"), QStringLiteral("复位") },
+        { QStringLiteral(":/icons/mouse_right.png"), QStringLiteral("+ 点击"), QStringLiteral("复制") },
+    };
+
+    // 快捷键行数据：按键组合 + 含义
+    struct KeysRowSpec
+    {
+        QString keys;
+        QString meaning;
+    };
+    const KeysRowSpec keysRows[] = {
+        { QStringLiteral("Ctrl + S"),        QStringLiteral("保存") },
+        { QStringLiteral("Del + Del"),       QStringLiteral("清空编辑") },
+        { QStringLiteral("Del + Del + Del"), QStringLiteral("清空全部") },
+        { QStringLiteral("Ctrl + Z"),        QStringLiteral("撤销") },
+        { QStringLiteral("Ctrl + Y"),        QStringLiteral("重做") },
+    };
+
+    int rowIndex = 0;
+
+    // 1. 图标行：图标(列0) + 操作描述(列1) + 含义(列2，右对齐)
+    for (const IconRowSpec& rowSpec : iconRows)
+    {
+        auto* iconLabel = new QLabel(m_contentWidget);
+        iconLabel->setPixmap(QPixmap(rowSpec.iconPath));
+        iconLabel->setFixedSize(G_ICON_COLUMN_WIDTH, G_ICON_COLUMN_WIDTH);
+        iconLabel->setScaledContents(true);
+
+        auto* opLabel = new QLabel(rowSpec.operation, m_contentWidget);
+        opLabel->setStyleSheet(G_CONTENT_STYLE);
+        opLabel->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+
+        auto* meaningLabel = new QLabel(rowSpec.meaning, m_contentWidget);
+        meaningLabel->setStyleSheet(G_CONTENT_STYLE);
+        meaningLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+
+        guideGrid->addWidget(iconLabel, rowIndex, 0, Qt::AlignLeft | Qt::AlignVCenter);
+        guideGrid->addWidget(opLabel, rowIndex, 1, Qt::AlignLeft | Qt::AlignVCenter);
+        guideGrid->addWidget(meaningLabel, rowIndex, 2, Qt::AlignRight | Qt::AlignVCenter);
+        guideGrid->setRowMinimumHeight(rowIndex, G_ROW_HEIGHT);
+        ++rowIndex;
+    }
+
+    // 2. 快捷键行：按键文本跨列0/列1 左对齐（与图标行左缘对齐），含义在列2 右对齐
+    for (const KeysRowSpec& rowSpec : keysRows)
+    {
+        auto* keysLabel = new QLabel(rowSpec.keys, m_contentWidget);
+        keysLabel->setStyleSheet(G_CONTENT_STYLE);
+        keysLabel->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+
+        auto* meaningLabel = new QLabel(rowSpec.meaning, m_contentWidget);
+        meaningLabel->setStyleSheet(G_CONTENT_STYLE);
+        meaningLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+
+        guideGrid->addWidget(keysLabel, rowIndex, 0, 1, 2, Qt::AlignLeft | Qt::AlignVCenter);
+        guideGrid->addWidget(meaningLabel, rowIndex, 2, Qt::AlignRight | Qt::AlignVCenter);
+        guideGrid->setRowMinimumHeight(rowIndex, G_ROW_HEIGHT);
+        ++rowIndex;
+    }
 }
 
 void GuidePanel::setZoomScale(qreal scale)
@@ -178,11 +224,18 @@ void GuidePanel::mousePressEvent(QMouseEvent* event)
 
 void GuidePanel::toggleCollapsed()
 {
+    // 翻转折叠标志并写回 QSettings，保证下次启动恢复本次状态
     m_collapsed = !m_collapsed;
+    m_settings->setValue(G_KEY_COLLAPSED, m_collapsed);
+    applyCollapsedState();
+}
+
+void GuidePanel::applyCollapsedState()
+{
     if (m_collapsed)
     {
         // 折叠：隐藏全部内容，缩小为小浮动控件
-        m_contentLabel->setVisible(false);
+        m_contentWidget->setVisible(false);
         m_hintLabel->setVisible(false);
         m_zoomLabel->setVisible(false);
         setFixedSize(G_COLLAPSED_SIZE, G_COLLAPSED_SIZE);
@@ -190,7 +243,7 @@ void GuidePanel::toggleCollapsed()
     else
     {
         // 展开：恢复完整面板尺寸与内容
-        m_contentLabel->setVisible(true);
+        m_contentWidget->setVisible(true);
         m_hintLabel->setVisible(true);
         m_zoomLabel->setVisible(true);
         setFixedSize(G_EXPANDED_W, G_EXPANDED_H);

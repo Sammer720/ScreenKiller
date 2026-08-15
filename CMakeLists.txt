@@ -5,8 +5,27 @@
 cmake_minimum_required(VERSION 3.21)
 
 # ---------- 项目信息 ----------
+# 版本号策略：
+#   日常编译：版本号由本文件控制，Debug 默认 0.0.0，Release 默认 0.0.1；
+#   打包发布：打包任务（.vscode/tasks.json「CMake: 打包 (Release)」）通过环境变量
+#   SCREENKILLER_VERSION 传入发布版本号，配置期读入 project(VERSION)，
+#   使编译层（exe 属性版本）与打包层（包文件名 / 注册表 DisplayVersion）同源一致。
+# 注意：环境变量可能带首尾空白（例如 cmd 的 set 写法会吞入 && 前的空格），
+#       这里统一 STRIP 后再判空，避免 project(VERSION "1.2.2 ") 这类格式错误。
+if(DEFINED ENV{SCREENKILLER_VERSION})
+    string(STRIP "$ENV{SCREENKILLER_VERSION}" SCREENKILLER_VERSION)
+else()
+    set(SCREENKILLER_VERSION "")
+endif()
+if(SCREENKILLER_VERSION STREQUAL "")
+    if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+        set(SCREENKILLER_VERSION "0.0.0")
+    else()
+        set(SCREENKILLER_VERSION "0.0.1")
+    endif()
+endif()
 project(ScreenKiller
-    VERSION 1.1.0
+    VERSION ${SCREENKILLER_VERSION}
     DESCRIPTION "Windows 长截屏（滚动截屏）与图像标注工具"
     LANGUAGES CXX
 )
@@ -65,7 +84,7 @@ message(STATUS "===========================================================")
 # =============================================================================
 # 寻找 Qt6
 # =============================================================================
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Concurrent)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Concurrent Network)
 
 # 编译时需要的 Qt 定义
 add_compile_definitions(
@@ -189,6 +208,11 @@ set(APP_SOURCES
     src/utils/ImageUtils.cpp
     src/utils/Logger.cpp
     src/utils/MessageBox.cpp
+
+    # 自动更新
+    src/update/UpdateChecker.cpp
+    src/update/UpdateDialog.cpp
+    src/update/VersionUtils.cpp
 )
 
 set(APP_HEADERS
@@ -232,6 +256,12 @@ set(APP_HEADERS
 
     src/utils/ImageUtils.h
     src/utils/Logger.h
+
+    # 自动更新
+    src/update/UpdateChecker.h
+    src/update/UpdateDialog.h
+    src/update/UpdateInfo.h
+    src/update/VersionUtils.h
 )
 
 set(APP_RESOURCES
@@ -239,9 +269,18 @@ set(APP_RESOURCES
 )
 
 # Windows 资源文件（exe 文件图标 + 版本信息）
+# 版本号由 CMake 配置期从 project(VERSION ...) 代入模板生成 app.rc，
+# 避免 .rc 里硬编码版本号与工程版本脱节（详见 windows/app.rc.in）
 if(WIN32)
+    # 生成的 app.rc 位于构建目录，相对路径会失效，故用正斜杠绝对路径；
+    # 注意不要用反斜杠：rc.exe 会把 \r、\a 等当作转义符，导致图标路径找不到
+    configure_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/windows/app.rc.in"
+        "${CMAKE_CURRENT_BINARY_DIR}/generated/app.rc"
+        @ONLY
+    )
     set(APP_RESOURCES_WIN
-        windows/app.rc
+        "${CMAKE_CURRENT_BINARY_DIR}/generated/app.rc"
     )
 endif()
 
@@ -277,6 +316,8 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/platform
     ${CMAKE_CURRENT_SOURCE_DIR}/src/ui
     ${CMAKE_CURRENT_SOURCE_DIR}/src/utils
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/update
+    ${CMAKE_CURRENT_BINARY_DIR}/generated
     ${OpenCV_INCLUDE_DIRS}
 )
 
@@ -285,6 +326,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     Qt6::Gui
     Qt6::Widgets
     Qt6::Concurrent
+    Qt6::Network
 
     ${OpenCV_LIBS}
 
@@ -295,6 +337,19 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     shell32     # Shell_NotifyIcon（托盘）
     comctl32    # 通用控件
     advapi32    # RegisterHotKey 依赖
+)
+
+# =============================================================================
+# 运行期版本号与更新源注入（供自动更新模块读取，杜绝硬编码）
+#   通过 configure_file 生成 AppInfo.h，@PROJECT_VERSION@ 与打包版本同源，
+#   机制与 windows/app.rc.in 一致，规避宏字符串引号转义问题。
+# =============================================================================
+set(SK_GITHUB_REPO_FULL_NAME "Sammer720/ScreenKiller")
+set(SK_GITEE_REPO_FULL_NAME "Sammer720/ScreenKiller")
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/update/AppInfo.h.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/generated/update/AppInfo.h"
+    @ONLY
 )
 
 # =============================================================================
@@ -422,7 +477,12 @@ if(WIN32)
 
     # NSIS 特定
     set(CPACK_NSIS_DISPLAY_NAME "ScreenKiller")
-    set(CPACK_NSIS_PACKAGE_NAME "ScreenKiller ${PROJECT_VERSION}")
+    # 安装向导标题/文案不再附带版本号（版本号仅进入安装包文件名与注册表 DisplayVersion，
+    # 未来由应用自检更新，无需在向导中提示用户）
+    set(CPACK_NSIS_PACKAGE_NAME "ScreenKiller")
+    # 卸载项图标：指向已安装的 exe，让 Win11「设置 → 应用 → 已安装的应用」能显示应用图标
+    # （缺省为空会导致 DisplayIcon 被写成目录路径，卸载列表里看不到图标）
+    set(CPACK_NSIS_INSTALLED_ICON_NAME "ScreenKiller.exe")
     set(CPACK_NSIS_MODIFY_PATH OFF)
     set(CPACK_NSIS_ENABLE_UNINSTALL_BEFORE_INSTALL ON)
     set(CPACK_NSIS_EXECUTABLES_DIRECTORY ".")
