@@ -206,10 +206,16 @@ ScreenKiller/
 │   ├── sub_widget/                # 子控件（1 组）
 │   │   └── ToolButton.h/.cpp      # 手风琴工具按钮（tooltip / 启闭循环）
 │   │
-│   └── utils/                     # 工具（3 组）
-│       ├── ImageUtils.h/.cpp      # QImage ↔ cv::Mat 互转
-│       ├── Logger.h/.cpp          # QLoggingCategory 分类日志宏
-│       └── MessageBox.h/.cpp      # 中文按钮消息框
+│   ├── utils/                     # 工具（3 组）
+│   │   ├── ImageUtils.h/.cpp      # QImage ↔ cv::Mat 互转
+│   │   ├── Logger.h/.cpp          # QLoggingCategory 分类日志宏
+│   │   └── MessageBox.h/.cpp      # 中文按钮消息框
+│   │
+│   └── update/                    # 自动更新（4 组）
+│       ├── UpdateChecker.h/.cpp   # GitHub Releases 检测器
+│       ├── UpdateDialog.h/.cpp    # 更新提示对话框
+│       ├── UpdateInfo.h           # 发布信息结构体
+│       └── VersionUtils.h/.cpp    # 语义版本比较工具
 │
 ├── build/                         # 构建输出（含 dist/ 打包产物）
 ├── tests/                         # 单元测试（待填充）
@@ -308,6 +314,20 @@ BaseAnnotationItem : QGraphicsItem   ← 统一管理 QPen / QBrush
   - 安装后注册表 `DisplayVersion`
 - **版本在 configure 时固化**：改版本号后必须重新配置（重新执行 `cmake --preset ...`）才会重编译生效；只执行构建不会换版本号。
 - **发布流程**：设置 `SCREENKILLER_VERSION` → `cmake --preset user-release` → `cmake --build --preset user-release` → `cpack --preset package_release` → `cmake -P cmake/rename_portable_zip.cmake`（便携包自动追加 `-portable` 后缀）。
+- **运行期同源**：程序运行期版本号由 CMake 配置期经 `configure_file` 生成 `generated/update/AppInfo.h` 的 `SK_APP_VERSION` 宏注入，`main.cpp` 用它设置 `QApplication::applicationVersion()`，供自动更新模块比对——与 exe 属性 / 包文件名 / 注册表 DisplayVersion 完全同源。
+
+### 5.7 自动更新机制
+
+程序内置「检测更新」能力，更新源为 GitHub 仓库 `Sammer720/ScreenKiller` 的 Releases 发布页，全部基于 Qt 原生模块（`QNetworkAccessManager` + `QJsonDocument` + `QVersionNumber` + `QDesktopServices` + 托盘气泡 + 自定义对话框），不引入任何第三方依赖。
+
+- **检测时机**：启动后约 3 秒在后台自动检测一次（24 小时冷却）；托盘右键菜单「检查更新」可随时手动触发。
+- **检测目标**：`GET https://api.github.com/repos/Sammer720/ScreenKiller/releases/latest`，只认正式版（跳过 draft / prerelease），比对 `tag_name` 的 `X.Y.Z` 段。
+- **版本比对**：`QVersionNumber` 逐段数值比较（正确处理 1.2.9 < 1.2.10），当前版本号来自运行期同源的 `SK_APP_VERSION`。
+- **按发行版匹配资产**：安装版跳转 `ScreenKiller-<版本>-win64.exe` 安装器；便携版（exe 旁存在 `portable.txt`）跳转 `ScreenKiller-<版本>-win64-portable.zip` 压缩包；找不到对应资产则回退到发布页。
+- **提示与交互**：有新版 → 托盘气泡「发现新版本」，点击弹出更新对话框（Markdown 渲染变更日志），提供「前往下载 / 稍后 / 跳过此版本」三个动作；「前往下载」仅打开浏览器到对应资产地址，**不自动下载安装**。
+- **便携版更新**：完全由用户手动完成（自行下载 ZIP 解压覆盖，保留 `portable.txt` 与 INI 配置）。
+- **容错**：离线 / API 限流（403/429）/ 无 Release 等异常不崩溃、不刷屏，自动检查仅记日志，手动检查给一次性提示。
+- **持久化**：跳过版本（`update/ignoredVersion`）与最近自动检查时间（`update/lastAutoCheck`）写入 INI。
 
 ---
 

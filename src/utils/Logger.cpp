@@ -22,3 +22,5 @@ Q_LOGGING_CATEGORY(skStitcher,   "sk.stitcher")
 Q_LOGGING_CATEGORY(skAnnotation,  "sk.annotation")
 /// \brief 平台层日志分类实例
 Q_LOGGING_CATEGORY(skPlatform,    "sk.platform")
+/// \brief 自动更新模块日志分类实例
+Q_LOGGING_CATEGORY(skUpdater,     "sk.updater")

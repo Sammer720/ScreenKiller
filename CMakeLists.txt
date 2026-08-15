@@ -84,7 +84,7 @@ message(STATUS "===========================================================")
 # =============================================================================
 # 寻找 Qt6
 # =============================================================================
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Concurrent)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Concurrent Network)
 
 # 编译时需要的 Qt 定义
 add_compile_definitions(
@@ -208,6 +208,11 @@ set(APP_SOURCES
     src/utils/ImageUtils.cpp
     src/utils/Logger.cpp
     src/utils/MessageBox.cpp
+
+    # 自动更新
+    src/update/UpdateChecker.cpp
+    src/update/UpdateDialog.cpp
+    src/update/VersionUtils.cpp
 )
 
 set(APP_HEADERS
@@ -251,6 +256,12 @@ set(APP_HEADERS
 
     src/utils/ImageUtils.h
     src/utils/Logger.h
+
+    # 自动更新
+    src/update/UpdateChecker.h
+    src/update/UpdateDialog.h
+    src/update/UpdateInfo.h
+    src/update/VersionUtils.h
 )
 
 set(APP_RESOURCES
@@ -305,6 +316,8 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/platform
     ${CMAKE_CURRENT_SOURCE_DIR}/src/ui
     ${CMAKE_CURRENT_SOURCE_DIR}/src/utils
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/update
+    ${CMAKE_CURRENT_BINARY_DIR}/generated
     ${OpenCV_INCLUDE_DIRS}
 )
 
@@ -313,6 +326,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     Qt6::Gui
     Qt6::Widgets
     Qt6::Concurrent
+    Qt6::Network
 
     ${OpenCV_LIBS}
 
@@ -323,6 +337,18 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     shell32     # Shell_NotifyIcon（托盘）
     comctl32    # 通用控件
     advapi32    # RegisterHotKey 依赖
+)
+
+# =============================================================================
+# 运行期版本号与更新源注入（供自动更新模块读取，杜绝硬编码）
+#   通过 configure_file 生成 AppInfo.h，@PROJECT_VERSION@ 与打包版本同源，
+#   机制与 windows/app.rc.in 一致，规避宏字符串引号转义问题。
+# =============================================================================
+set(SK_GITHUB_REPO_FULL_NAME "Sammer720/ScreenKiller")
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/update/AppInfo.h.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/generated/update/AppInfo.h"
+    @ONLY
 )
 
 # =============================================================================

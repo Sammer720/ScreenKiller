@@ -31,6 +31,8 @@
 #include <QDateTime>
 #include <QFileInfo>
 #include <QSettings>
+#include <QDesktopServices>
+#include <QUrl>
 
 #ifdef Q_OS_WIN
 #  include <windows.h>
@@ -46,6 +48,8 @@
 #include "ui/ToolBar.h"
 #include "utils/Logger.h"
 #include "utils/MessageBox.h"
+#include "update/UpdateChecker.h"
+#include "update/UpdateDialog.h"
 
 namespace SK {
 
@@ -91,6 +95,16 @@ constexpr int G_GUIDE_PANEL_MARGIN = 24;
 /// 与 GuidePanel 的 24 不同：GuidePanel 在左上角，工具栏在右侧贴边，
 /// 两者分属不同区域不会重叠，右侧边距取 12 即可保证视觉均衡。
 constexpr int G_ANN_TOOLBAR_MARGIN = 12;
+/// \brief 最近一次自动检查时间戳的配置键
+const QString G_CONFIG_KEY_LAST_AUTO_CHECK = QStringLiteral("update/lastAutoCheck");
+/// \brief 用户跳过版本号的配置键
+const QString G_CONFIG_KEY_IGNORED_VERSION = QStringLiteral("update/ignoredVersion");
+/// \brief 自动检查冷却间隔（小时）
+constexpr int G_AUTO_CHECK_INTERVAL_HOURS = 24;
+/// \brief 每小时秒数（用于把冷却小时换算成秒）
+constexpr qint64 G_SECONDS_PER_HOUR = 3600;
+/// \brief 启动后延迟自动检查的毫秒数
+constexpr int G_AUTO_CHECK_DELAY_MS = 3000;
 }
 
 MainWindow::MainWindow(QWidget* parent)
@@ -130,6 +144,16 @@ MainWindow::MainWindow(QWidget* parent)
                                        static_cast<int>(CaptureMode::Region)).toInt();
     m_mode = static_cast<CaptureMode>(savedMode);
     m_toolBar->setCaptureMode(savedMode);
+
+    // 初始化更新检测器并连接结果信号，启动后延迟自动检查一次
+    m_updateChecker = new update::UpdateChecker(this);
+    connect(m_updateChecker, &update::UpdateChecker::updateAvailable,
+            this, &MainWindow::onUpdateAvailable);
+    connect(m_updateChecker, &update::UpdateChecker::upToDate,
+            this, &MainWindow::onUpdateUpToDate);
+    connect(m_updateChecker, &update::UpdateChecker::checkFailed,
+            this, &MainWindow::onUpdateCheckFailed);
+    QTimer::singleShot(G_AUTO_CHECK_DELAY_MS, this, &MainWindow::startAutoUpdateCheck);
 }
 
 // -----------------------------------------------------------------------------
@@ -277,14 +301,25 @@ void MainWindow::setupTrayIcon()
     auto* actShow = menu->addAction(tr("显示主窗口"));
     QAction* actCap  = menu->addAction(tr("截屏  Ctrl+Alt+A"));
     menu->addSeparator();
+    QAction* actUpdate = menu->addAction(tr("检查更新"));
     QAction* actQuit = menu->addAction(tr("退出"));
 
     connect(actShow, &QAction::triggered, this, &QWidget::showNormal);
     connect(actCap,  &QAction::triggered, this, &MainWindow::onCaptureButtonClicked);
+    connect(actUpdate, &QAction::triggered, this, &MainWindow::onManualUpdateCheck);
     connect(actQuit, &QAction::triggered, this, &MainWindow::onQuitRequested);
     m_tray->setContextMenu(menu);
 
     connect(m_tray, &QSystemTrayIcon::activated, this, &MainWindow::onTrayActivated);
+    // 点击「发现新版本」气泡时弹出更新对话框
+    connect(m_tray, &QSystemTrayIcon::messageClicked, this, [this]()
+    {
+        if (m_latestRelease.versionString.isEmpty())
+        {
+            return;
+        }
+        showUpdateDialog(m_latestRelease);
+    });
 }
 
 void MainWindow::registerHotkeys()
@@ -738,6 +773,169 @@ void MainWindow::startCapture(CaptureMode mode)
         }
         m_capture->start(static_cast<CaptureEngine::Mode>(mode));
     });
+}
+
+// -----------------------------------------------------------------------------
+// 自动更新
+// -----------------------------------------------------------------------------
+void MainWindow::onManualUpdateCheck()
+{
+    // 手动检查不受冷却限制，直接发起
+    startUpdateCheck(true);
+}
+
+void MainWindow::startAutoUpdateCheck()
+{
+    QSettings settings;
+    const QDateTime lastCheckTime = settings.value(G_CONFIG_KEY_LAST_AUTO_CHECK).toDateTime();
+    const QDateTime currentTime = QDateTime::currentDateTime();
+
+    // 距上次自动检查不足冷却间隔则跳过，避免每次启动都联网
+    if (lastCheckTime.isValid())
+    {
+        const qint64 elapsedSeconds = lastCheckTime.secsTo(currentTime);
+        const qint64 intervalSeconds =
+            static_cast<qint64>(G_AUTO_CHECK_INTERVAL_HOURS) * G_SECONDS_PER_HOUR;
+        if (elapsedSeconds < intervalSeconds)
+        {
+            SK_LOG_UPD() << "距上次自动检查不足" << G_AUTO_CHECK_INTERVAL_HOURS << "小时，跳过。";
+            return;
+        }
+    }
+
+    // 记录本次自动检查时间后发起检查
+    settings.setValue(G_CONFIG_KEY_LAST_AUTO_CHECK, currentTime);
+    startUpdateCheck(false);
+}
+
+void MainWindow::startUpdateCheck(bool isManual)
+{
+    // 标记本次检查的触发方式，供异步结果回调时决定提示策略
+    m_isManualCheck = isManual;
+    if (m_updateChecker != nullptr)
+    {
+        m_updateChecker->checkForUpdates();
+    }
+}
+
+void MainWindow::onUpdateAvailable(const update::ReleaseInfo& releaseInfo)
+{
+    // 1. 用户已跳过该版本则不再提示
+    QSettings settings;
+    const QString ignoredVersion = settings.value(G_CONFIG_KEY_IGNORED_VERSION).toString();
+    if ((!ignoredVersion.isEmpty()) && (ignoredVersion == releaseInfo.versionString))
+    {
+        SK_LOG_UPD() << "版本" << releaseInfo.versionString << "已被用户跳过。";
+        m_isManualCheck = false;
+        return;
+    }
+
+    // 2. 缓存最新发布信息，供托盘气泡点击回调使用
+    m_latestRelease = releaseInfo;
+
+    // 3. 手动检查：直接弹出更新对话框
+    if (m_isManualCheck)
+    {
+        m_isManualCheck = false;
+        showUpdateDialog(releaseInfo);
+        return;
+    }
+
+    // 4. 自动检查：以托盘气泡非打扰式提示，点击气泡再打开对话框
+    m_isManualCheck = false;
+    if (m_tray != nullptr)
+    {
+        m_tray->showMessage(
+            tr("发现新版本"),
+            tr("ScreenKiller v%1 已发布，点击查看详情。").arg(releaseInfo.versionString),
+            QIcon(QStringLiteral(":/icons/app_alph.png")),
+            G_TRAY_NOTICE_DURATION_MS);
+    }
+}
+
+void MainWindow::onUpdateUpToDate()
+{
+    const bool wasManualCheck = m_isManualCheck;
+    m_isManualCheck = false;
+
+    // 仅手动检查时提示「已是最新」，自动检查保持静默
+    if (wasManualCheck)
+    {
+        if (m_tray != nullptr)
+        {
+            m_tray->showMessage(
+                tr("检查更新"),
+                tr("当前已是最新版本。"),
+                QIcon(QStringLiteral(":/icons/app_alph.png")),
+                G_TRAY_NOTICE_DURATION_MS);
+        }
+    }
+}
+
+void MainWindow::onUpdateCheckFailed(const QString& reason)
+{
+    const bool wasManualCheck = m_isManualCheck;
+    m_isManualCheck = false;
+
+    // 自动检查失败仅记日志；手动检查失败给一次明确提示
+    SK_LOG_UPD() << "更新检查失败:" << reason;
+    if (wasManualCheck)
+    {
+        SK::utils::showWarning(this, tr("检查更新失败"),
+                               tr("无法连接到更新服务器，请稍后重试。"));
+    }
+}
+
+void MainWindow::showUpdateDialog(const update::ReleaseInfo& releaseInfo)
+{
+    // 防重入：对话框已展示时忽略重复请求
+    if (m_updateDialogShown)
+    {
+        return;
+    }
+    m_updateDialogShown = true;
+
+    update::UpdateDialog dialog(releaseInfo, this);
+    dialog.exec();
+
+    m_updateDialogShown = false;
+
+    // 依据用户选择执行对应动作
+    const update::UpdateDialog::Action action = dialog.selectedAction();
+    switch (action)
+    {
+    case update::UpdateDialog::Action::Download:
+        openDownloadUrl(releaseInfo);
+        break;
+    case update::UpdateDialog::Action::Skip:
+        rememberIgnoredVersion(releaseInfo.versionString);
+        break;
+    case update::UpdateDialog::Action::Later:
+    default:
+        break;
+    }
+}
+
+void MainWindow::openDownloadUrl(const update::ReleaseInfo& releaseInfo)
+{
+    // 优先使用与发行版匹配的资产地址，缺失时回退到发布页
+    const QString targetUrl = releaseInfo.downloadUrl.isEmpty()
+                                  ? releaseInfo.releasePageUrl
+                                  : releaseInfo.downloadUrl;
+    const bool isOpened = QDesktopServices::openUrl(QUrl(targetUrl));
+    if (!isOpened)
+    {
+        SK_LOG_UPD() << "打开下载地址失败:" << targetUrl;
+        SK::utils::showWarning(this, tr("提示"),
+                               tr("无法打开浏览器，请手动访问发布页下载。"));
+    }
+}
+
+void MainWindow::rememberIgnoredVersion(const QString& versionString)
+{
+    QSettings settings;
+    settings.setValue(G_CONFIG_KEY_IGNORED_VERSION, versionString);
+    SK_LOG_UPD() << "用户已跳过版本:" << versionString;
 }
 
 } // namespace SK
