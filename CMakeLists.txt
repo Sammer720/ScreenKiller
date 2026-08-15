@@ -345,6 +345,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
 #   机制与 windows/app.rc.in 一致，规避宏字符串引号转义问题。
 # =============================================================================
 set(SK_GITHUB_REPO_FULL_NAME "Sammer720/ScreenKiller")
+set(SK_GITEE_REPO_FULL_NAME "Sammer720/ScreenKiller")
 configure_file(
     "${CMAKE_CURRENT_SOURCE_DIR}/src/update/AppInfo.h.in"
     "${CMAKE_CURRENT_BINARY_DIR}/generated/update/AppInfo.h"

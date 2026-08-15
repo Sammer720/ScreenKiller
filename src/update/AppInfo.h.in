@@ -11,5 +11,8 @@
 /// \brief 运行期版本号（源自 project(VERSION)，与打包版本同源）
 #define SK_APP_VERSION "@PROJECT_VERSION@"
 
-/// \brief GitHub 仓库全名（owner/repo），自动更新检测目标
+/// \brief GitHub 仓库全名（owner/repo），自动更新主检测源
 #define SK_GITHUB_REPO "@SK_GITHUB_REPO_FULL_NAME@"
+
+/// \brief Gitee 仓库全名（owner/repo），更新回落源（国内网络优先可访问）
+#define SK_GITEE_REPO "@SK_GITEE_REPO_FULL_NAME@"

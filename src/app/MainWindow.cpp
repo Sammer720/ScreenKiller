@@ -820,14 +820,17 @@ void MainWindow::startUpdateCheck(bool isManual)
 
 void MainWindow::onUpdateAvailable(const update::ReleaseInfo& releaseInfo)
 {
-    // 1. 用户已跳过该版本则不再提示
-    QSettings settings;
-    const QString ignoredVersion = settings.value(G_CONFIG_KEY_IGNORED_VERSION).toString();
-    if ((!ignoredVersion.isEmpty()) && (ignoredVersion == releaseInfo.versionString))
+    // 1. 「跳过此版本」仅抑制自动检查；手动检查是用户的明确行为，始终给出结果
+    if (!m_isManualCheck)
     {
-        SK_LOG_UPD() << "版本" << releaseInfo.versionString << "已被用户跳过。";
-        m_isManualCheck = false;
-        return;
+        QSettings settings;
+        const QString ignoredVersion = settings.value(G_CONFIG_KEY_IGNORED_VERSION).toString();
+        if ((!ignoredVersion.isEmpty()) && (ignoredVersion == releaseInfo.versionString))
+        {
+            SK_LOG_UPD() << "版本" << releaseInfo.versionString << "已被用户跳过（自动检查静默）。";
+            m_isManualCheck = false;
+            return;
+        }
     }
 
     // 2. 缓存最新发布信息，供托盘气泡点击回调使用

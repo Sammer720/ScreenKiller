@@ -321,7 +321,8 @@ BaseAnnotationItem : QGraphicsItem   ← 统一管理 QPen / QBrush
 程序内置「检测更新」能力，更新源为 GitHub 仓库 `Sammer720/ScreenKiller` 的 Releases 发布页，全部基于 Qt 原生模块（`QNetworkAccessManager` + `QJsonDocument` + `QVersionNumber` + `QDesktopServices` + 托盘气泡 + 自定义对话框），不引入任何第三方依赖。
 
 - **检测时机**：启动后约 3 秒在后台自动检测一次（24 小时冷却）；托盘右键菜单「检查更新」可随时手动触发。
-- **检测目标**：`GET https://api.github.com/repos/Sammer720/ScreenKiller/releases/latest`，只认正式版（跳过 draft / prerelease），比对 `tag_name` 的 `X.Y.Z` 段。
+- **双源竞速**：同时请求 GitHub 与 Gitee 的 `releases/latest`（`api.github.com` / `gitee.com/api/v5`），**哪个源先成功回包就用哪个源**的版本号与下载地址；单源失败不判失败，等另一源；双源均失败才提示。国内网络下 GitHub 不可达时自动落到 Gitee，下载地址指向可访问的源。
+- **检测目标**：只认正式版（跳过 draft / prerelease），比对 `tag_name` 的 `X.Y.Z` 段。
 - **版本比对**：`QVersionNumber` 逐段数值比较（正确处理 1.2.9 < 1.2.10），当前版本号来自运行期同源的 `SK_APP_VERSION`。
 - **按发行版匹配资产**：安装版跳转 `ScreenKiller-<版本>-win64.exe` 安装器；便携版（exe 旁存在 `portable.txt`）跳转 `ScreenKiller-<版本>-win64-portable.zip` 压缩包；找不到对应资产则回退到发布页。
 - **提示与交互**：有新版 → 托盘气泡「发现新版本」，点击弹出更新对话框（Markdown 渲染变更日志），提供「前往下载 / 稍后 / 跳过此版本」三个动作；「前往下载」仅打开浏览器到对应资产地址，**不自动下载安装**。

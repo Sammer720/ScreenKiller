@@ -1,6 +1,6 @@
 /**
  * \file UpdateChecker.cpp
- * \brief GitHub Releases 更新检测器实现
+ * \brief GitHub / Gitee 双源并发更新检测器实现
  */
 #include "UpdateChecker.h"
 
@@ -24,8 +24,10 @@ namespace SK::update {
 namespace {
 
 /// \brief GitHub API 基址
-const QString G_API_BASE_URL = QStringLiteral("https://api.github.com/repos/");
-/// \brief releases/latest 端点后缀
+const QString G_GITHUB_API_BASE_URL = QStringLiteral("https://api.github.com/repos/");
+/// \brief Gitee API 基址（国内网络访问更稳定，作为回落源）
+const QString G_GITEE_API_BASE_URL = QStringLiteral("https://gitee.com/api/v5/repos/");
+/// \brief releases/latest 端点后缀（两个源共用）
 const QString G_LATEST_ENDPOINT = QStringLiteral("/releases/latest");
 /// \brief 网络请求超时毫秒数
 constexpr int G_REQUEST_TIMEOUT_MS = 10000;
@@ -70,7 +72,7 @@ const QString G_JSON_ASSET_NAME = QStringLiteral("name");
 /// \brief 资产对象字段名：browser_download_url
 const QString G_JSON_ASSET_URL = QStringLiteral("browser_download_url");
 
-/// \brief 构建 GitHub API 要求的 User-Agent（GitHub 强制要求非空 UA）
+/// \brief 构建 API 要求的 User-Agent（GitHub 强制要求非空 UA）
 /// @return 形如 "ScreenKiller/1.2.3" 的标识串
 QString buildUserAgent()
 {
@@ -83,7 +85,7 @@ QString buildUserAgent()
 /// 优先精确匹配与发行版对应的后缀；未命中时回退到任意 .zip/.exe；
 /// 仍无结果则返回空字符串（由上层回退到发布页）。
 ///
-/// @param assets     GitHub API 返回的 assets 数组
+/// @param assets     API 返回的 assets 数组（GitHub 与 Gitee 结构一致）
 /// @param isPortable 是否为便携版发行
 /// @return 匹配资产的 browser_download_url；未匹配返回空字符串
 QString pickDownloadUrl(const QJsonArray& assets, bool isPortable)
@@ -150,37 +152,114 @@ bool UpdateChecker::isPortableDistribution()
     return QFile::exists(portableMarkerPath);
 }
 
-void UpdateChecker::checkForUpdates()
+QNetworkRequest UpdateChecker::buildUpdateRequest(const QUrl& url) const
 {
-    // 1. 拼出 releases/latest 端点地址
-    const QString repoFullName = QStringLiteral(SK_GITHUB_REPO);
-    const QUrl apiUrl(G_API_BASE_URL + repoFullName + G_LATEST_ENDPOINT);
-
-    // 2. 构造请求并设置必要请求头（GitHub 强制要求 User-Agent）
-    QNetworkRequest request(apiUrl);
+    QNetworkRequest request(url);
     request.setHeader(QNetworkRequest::UserAgentHeader, buildUserAgent());
     request.setRawHeader(G_HEADER_ACCEPT, G_HEADER_ACCEPT_VALUE);
     request.setRawHeader(G_HEADER_API_VERSION, G_HEADER_API_VERSION_VALUE);
     request.setTransferTimeout(G_REQUEST_TIMEOUT_MS);
+    return request;
+}
 
-    // 3. 发起异步请求，结果经 finished 信号回到 onReplyFinished
-    SK_LOG_UPD() << "开始检查更新:" << apiUrl.toString();
-    m_networkManager->get(request);
+void UpdateChecker::checkForUpdates()
+{
+    // 1. 先中止上一次可能仍在途的请求，防止新旧回包相互干扰
+    //    （旧回包的 finished 回调会因指针不匹配而被忽略）
+    m_isCheckDone = true;
+    if ((m_githubReply != nullptr) && (!m_githubReply->isFinished()))
+    {
+        m_githubReply->abort();
+    }
+    if ((m_giteeReply != nullptr) && (!m_giteeReply->isFinished()))
+    {
+        m_giteeReply->abort();
+    }
+
+    // 2. 重置本轮竞速状态
+    m_isCheckDone = false;
+    m_failureReasons.clear();
+
+    // 3. 并发发起 GitHub 与 Gitee 两个 latest 请求
+    const QUrl githubUrl(G_GITHUB_API_BASE_URL + QStringLiteral(SK_GITHUB_REPO) + G_LATEST_ENDPOINT);
+    const QUrl giteeUrl(G_GITEE_API_BASE_URL + QStringLiteral(SK_GITEE_REPO) + G_LATEST_ENDPOINT);
+
+    SK_LOG_UPD() << "并发检查更新: GitHub=" << githubUrl.toString()
+                 << " Gitee=" << giteeUrl.toString();
+    m_githubReply = m_networkManager->get(buildUpdateRequest(githubUrl));
+    m_giteeReply = m_networkManager->get(buildUpdateRequest(giteeUrl));
 }
 
 void UpdateChecker::onReplyFinished(QNetworkReply* reply)
 {
-    // reply 归 QNetworkAccessManager 管理，读取完立即排程释放，避免内存泄漏
+    // reply 归 QNetworkAccessManager 管理，无论是否使用都排程释放
     reply->deleteLater();
 
+    // 过期回包（上一次检查被中止后迟到的）或已定案：忽略
+    if ((reply != m_githubReply) && (reply != m_giteeReply))
+    {
+        return;
+    }
+    if (m_isCheckDone)
+    {
+        return;
+    }
+
+    // 1. 解析当前源的回包；解析失败则记录原因并等另一个源
+    ReleaseInfo releaseInfo;
+    QString failureReason;
+    const bool isParseSuccess = parseReleaseResponse(reply, releaseInfo, failureReason);
+    if (!isParseSuccess)
+    {
+        m_failureReasons.append(failureReason);
+
+        // 双源均已失败：定案失败
+        const QNetworkReply* otherReply = (reply == m_githubReply) ? m_giteeReply : m_githubReply;
+        if ((otherReply != nullptr) && (otherReply->isFinished()))
+        {
+            m_isCheckDone = true;
+            const QString combinedReason = m_failureReasons.join(QStringLiteral("；"));
+            SK_LOG_UPD() << "更新检查失败（双源均不可用）:" << combinedReason;
+            Q_EMIT checkFailed(combinedReason);
+        }
+        return;
+    }
+
+    // 2. 竞速取先：首个成功回包立即定案，并中止另一源的在途请求
+    m_isCheckDone = true;
+    abortOtherReply(reply);
+
+    // 3. 预发布 / 无版本号：视为无正式新版
+    if (releaseInfo.versionString.isEmpty())
+    {
+        SK_LOG_UPD() << "该源最新为预发布或无版本号，视为无正式新版。";
+        Q_EMIT upToDate();
+        return;
+    }
+
+    // 4. 版本比对：不高于当前版本则视为最新
+    const QString currentVersion = QCoreApplication::applicationVersion();
+    if (!isNewerVersion(currentVersion, releaseInfo.tagName))
+    {
+        SK_LOG_UPD() << "当前版本" << currentVersion << "已是最新（tag:" << releaseInfo.tagName << "）。";
+        Q_EMIT upToDate();
+        return;
+    }
+
+    // 5. 有新版：上报（下载地址与发布页均指向先回包的源）
+    SK_LOG_INFO() << "发现新版本:" << releaseInfo.tagName;
+    SK_LOG_UPD() << "下载地址:" << releaseInfo.downloadUrl;
+    Q_EMIT updateAvailable(releaseInfo);
+}
+
+bool UpdateChecker::parseReleaseResponse(QNetworkReply* reply, ReleaseInfo& outInfo, QString& outFailureReason)
+{
     // 1. 网络层错误直接上报（含离线 / 超时 / TLS 失败等）
     const QNetworkReply::NetworkError networkError = reply->error();
     if (networkError != QNetworkReply::NoError)
     {
-        const QString reason = reply->errorString();
-        SK_LOG_UPD() << "更新检查网络失败:" << reason;
-        Q_EMIT checkFailed(reason);
-        return;
+        outFailureReason = reply->errorString();
+        return false;
     }
 
     // 2. 依据 HTTP 状态码分流
@@ -188,25 +267,18 @@ void UpdateChecker::onReplyFinished(QNetworkReply* reply)
         reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
     if (httpStatus == 404)
     {
-        // 仓库尚无任何 Release：视为「无新版」
-        SK_LOG_UPD() << "仓库尚无 Release，视为无新版。";
-        Q_EMIT upToDate();
-        return;
+        outFailureReason = QStringLiteral("HTTP 404（该源暂无 Release）");
+        return false;
     }
     if ((httpStatus == 403) || (httpStatus == 429))
     {
-        // GitHub API 限流：作为失败处理，不立即重试
-        const QString reason = QStringLiteral("GitHub API 限流 (HTTP %1)").arg(httpStatus);
-        SK_LOG_UPD() << reason;
-        Q_EMIT checkFailed(reason);
-        return;
+        outFailureReason = QStringLiteral("HTTP %1（限流）").arg(httpStatus);
+        return false;
     }
     if (httpStatus != 200)
     {
-        const QString reason = QStringLiteral("HTTP %1").arg(httpStatus);
-        SK_LOG_UPD() << "更新检查 HTTP 错误:" << reason;
-        Q_EMIT checkFailed(reason);
-        return;
+        outFailureReason = QStringLiteral("HTTP %1").arg(httpStatus);
+        return false;
     }
 
     // 3. 解析响应 JSON
@@ -215,55 +287,47 @@ void UpdateChecker::onReplyFinished(QNetworkReply* reply)
     const QJsonDocument document = QJsonDocument::fromJson(payload, &parseError);
     if (parseError.error != QJsonParseError::NoError)
     {
-        const QString reason = QStringLiteral("JSON 解析失败: %1").arg(parseError.errorString());
-        SK_LOG_UPD() << reason;
-        Q_EMIT checkFailed(reason);
-        return;
+        outFailureReason = QStringLiteral("JSON 解析失败: %1").arg(parseError.errorString());
+        return false;
     }
     if (!document.isObject())
     {
-        SK_LOG_UPD() << "更新检查响应不是 JSON 对象。";
-        Q_EMIT checkFailed(QStringLiteral("响应格式异常。"));
-        return;
+        outFailureReason = QStringLiteral("响应不是 JSON 对象");
+        return false;
     }
 
     const QJsonObject rootObject = document.object();
+    const QString tagName = rootObject.value(G_JSON_TAG_NAME).toString();
 
-    // 4. 跳过草稿与预发布：MVP 只认正式版
+    // 4. 组装发布信息并按发行版类型挑选下载资产
+    outInfo.tagName = tagName;
+    outInfo.versionString = normalizeTag(tagName);
+    outInfo.title = rootObject.value(G_JSON_TITLE).toString();
+    outInfo.changelogMarkdown = rootObject.value(G_JSON_BODY).toString();
+    outInfo.releasePageUrl = rootObject.value(G_JSON_HTML_URL).toString();
+    outInfo.publishedAt =
+        QDateTime::fromString(rootObject.value(G_JSON_PUBLISHED_AT).toString(), Qt::ISODate);
+    outInfo.downloadUrl =
+        pickDownloadUrl(rootObject.value(G_JSON_ASSETS).toArray(), isPortableDistribution());
+
+    // 5. 草稿 / 预发布：置空版本号，表示「该源无正式新版」
     const bool isDraft = rootObject.value(G_JSON_DRAFT).toBool();
     const bool isPrerelease = rootObject.value(G_JSON_PRERELEASE).toBool();
     if ((isDraft) || (isPrerelease))
     {
-        SK_LOG_UPD() << "最新 Release 为 draft/prerelease，MVP 视为无正式新版。";
-        Q_EMIT upToDate();
-        return;
+        outInfo.versionString.clear();
     }
 
-    // 5. 版本比对：不高于当前版本则视为最新
-    const QString tagName = rootObject.value(G_JSON_TAG_NAME).toString();
-    const QString currentVersion = QCoreApplication::applicationVersion();
-    if (!isNewerVersion(currentVersion, tagName))
+    return true;
+}
+
+void UpdateChecker::abortOtherReply(QNetworkReply* finishedReply)
+{
+    QNetworkReply* otherReply = (finishedReply == m_githubReply) ? m_giteeReply : m_githubReply;
+    if ((otherReply != nullptr) && (!otherReply->isFinished()))
     {
-        SK_LOG_UPD() << "当前版本" << currentVersion << "已是最新（tag:" << tagName << "）。";
-        Q_EMIT upToDate();
-        return;
+        otherReply->abort();
     }
-
-    // 6. 组装发布信息并按发行版类型挑选下载资产
-    ReleaseInfo releaseInfo;
-    releaseInfo.versionString = normalizeTag(tagName);
-    releaseInfo.tagName = tagName;
-    releaseInfo.title = rootObject.value(G_JSON_TITLE).toString();
-    releaseInfo.changelogMarkdown = rootObject.value(G_JSON_BODY).toString();
-    releaseInfo.releasePageUrl = rootObject.value(G_JSON_HTML_URL).toString();
-    releaseInfo.publishedAt =
-        QDateTime::fromString(rootObject.value(G_JSON_PUBLISHED_AT).toString(), Qt::ISODate);
-    releaseInfo.downloadUrl =
-        pickDownloadUrl(rootObject.value(G_JSON_ASSETS).toArray(), isPortableDistribution());
-
-    SK_LOG_INFO() << "发现新版本:" << tagName;
-    SK_LOG_UPD() << "下载地址:" << releaseInfo.downloadUrl;
-    Q_EMIT updateAvailable(releaseInfo);
 }
 
 } // namespace SK::update
